@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Source Exporter</title>
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="prism-devtools.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header id="header">
+      <div id="header-left">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 2h7l3 3v9H2V2z" stroke="#7aa0c4" stroke-width="1.2" fill="none"/>
+          <path d="M9 2v3h3" stroke="#7aa0c4" stroke-width="1.2" fill="none"/>
+          <path d="M4 7h6M4 9h6M4 11h4" stroke="#7aa0c4" stroke-width="1" stroke-linecap="round"/>
+        </svg>
+        <span id="title">Source Exporter</span>
+      </div>
+      <div id="header-right">
+        <button id="btn-refresh" class="btn btn-icon" title="Re-scan scripts">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M11 6.5A4.5 4.5 0 1 1 6.5 2a4.48 4.48 0 0 1 3.18 1.32" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M9.5 1v2.5H12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button id="btn-export-all" class="btn btn-primary" disabled>
+          Export All
+        </button>
+      </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div id="toolbar">
+      <div id="status-bar">
+        <span id="status-indicator" class="indicator inactive"></span>
+        <span id="status-text">Not connected</span>
+      </div>
+      <div id="toolbar-right">
+        <input id="filter-input" type="text" placeholder="Filter files..." spellcheck="false">
+        <select id="format-select">
+          <option value="zip">ZIP</option>
+          <option value="tar">TAR</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div id="main">
+      <!-- File tree -->
+      <div id="tree-panel">
+        <div id="tree-header">
+          <span>Sources</span>
+          <span id="file-count">—</span>
+        </div>
+        <div id="tree-container">
+          <div id="empty-state">
+            <div class="empty-icon">
+              <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                <rect x="6" y="4" width="20" height="26" rx="2" stroke="#3a4a5a" stroke-width="1.5" fill="none"/>
+                <path d="M26 4l6 6v20a2 2 0 0 1-2 2H12" stroke="#3a4a5a" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+                <path d="M26 4v6h6" stroke="#3a4a5a" stroke-width="1.5" fill="none"/>
+              </svg>
+            </div>
+            <p class="empty-title">No sources captured</p>
+            <p class="empty-sub">Click <strong>Connect</strong> then navigate the page to capture source-mapped files</p>
+            <button id="btn-connect" class="btn btn-primary">Connect to Tab</button>
+          </div>
+          <div id="tree-root" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Preview panel -->
+      <div id="preview-panel">
+        <div id="preview-header">
+          <span id="preview-filename">Select a file to preview</span>
+          <div id="preview-actions" style="display:none">
+            <button id="btn-wrap" class="btn btn-sm btn-icon-text" title="Toggle word wrap">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <path d="M1 2h9M1 5h6a2 2 0 0 1 0 4H5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+                <path d="M3 7l-2 2 2 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Wrap
+            </button>
+            <button id="btn-copy" class="btn btn-sm btn-icon-text">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <rect x="3.5" y="3.5" width="6" height="7" rx="1" stroke="currentColor" stroke-width="1"/>
+                <path d="M1.5 7.5V1.5h6" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Copy
+            </button>
+            <button id="btn-export-file" class="btn btn-sm btn-primary">Export</button>
+          </div>
+        </div>
+        <div id="preview-content">
+          <div id="preview-placeholder">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <path d="M8 4h10l6 6v18H8V4z" stroke="#2a3a4a" stroke-width="1.2" fill="none"/>
+              <path d="M18 4v6h6" stroke="#2a3a4a" stroke-width="1.2" fill="none"/>
+              <path d="M11 14h10M11 17h10M11 20h7" stroke="#2a3a4a" stroke-width="1" stroke-linecap="round"/>
+            </svg>
+            <span>No file selected</span>
+          </div>
+          <pre id="preview-code" class="line-numbers" style="display:none"><code id="preview-code-content"></code></pre>
+        </div>
+        <div id="preview-footer" style="display:none">
+          <span id="preview-lang-badge"></span>
+          <span id="preview-meta"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Context menu -->
+    <div id="context-menu" style="display:none">
+      <div class="ctx-item" id="ctx-export-file">Export file</div>
+      <div class="ctx-item" id="ctx-export-dir">Export directory</div>
+      <div class="ctx-separator"></div>
+      <div class="ctx-item" id="ctx-export-all">Export all sources</div>
+    </div>
+
+    <!-- Progress overlay -->
+    <div id="progress-overlay" style="display:none">
+      <div id="progress-box">
+        <div id="progress-title">Building archive...</div>
+        <div id="progress-bar-wrap">
+          <div id="progress-bar"></div>
+        </div>
+        <div id="progress-detail"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../vendor/jszip.min.js"></script>
+  <script src="../vendor/prism-bundle.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>

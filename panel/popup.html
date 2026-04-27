@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  body {
+    width: 220px;
+    background: #1e2328;
+    color: #cdd6e0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 12px;
+    padding: 12px;
+    margin: 0;
+  }
+  h3 {
+    font-size: 12px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #7aa0c4;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  p { color: #7a8b9a; line-height: 1.6; margin: 0 0 10px 0; font-size: 11px; }
+  .steps { list-style: none; padding: 0; margin: 0; counter-reset: steps; }
+  .steps li {
+    counter-increment: steps;
+    padding: 4px 0 4px 24px;
+    position: relative;
+    color: #9ab0c0;
+    font-size: 11px;
+    border-bottom: 1px solid #2a3040;
+  }
+  .steps li:last-child { border-bottom: none; }
+  .steps li::before {
+    content: counter(steps);
+    position: absolute;
+    left: 0;
+    top: 4px;
+    width: 16px;
+    height: 16px;
+    background: #1e3a54;
+    color: #4a90c4;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <h3>Source Exporter</h3>
+  <p>Export source-mapped files from DevTools.</p>
+  <ol class="steps">
+    <li>Open DevTools (F12)</li>
+    <li>Go to the <strong>Source Exporter</strong> tab</li>
+    <li>Click <strong>Connect to Tab</strong></li>
+    <li>Navigate / reload the inspected page</li>
+    <li>Right-click files or directories to export</li>
+  </ol>
+</body>
+</html>
