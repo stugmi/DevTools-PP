@@ -31,15 +31,16 @@ module.exports = [
     }
   },
   {
-    files: ['background/**/*.js'],
-    languageOptions: {
-      globals: { ...globals.serviceworker }
-    }
-  },
-  {
     files: ['devtools/**/*.js', 'panel/**/*.js'],
     languageOptions: {
-      globals: { ...globals.browser }
+      globals: {
+        ...globals.browser,
+        ...globals.webextensions,
+        chrome: 'readonly',
+        JSZip: 'readonly',
+        Prism: 'readonly',
+        beautifier: 'readonly'
+      }
     }
   },
   {

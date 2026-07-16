@@ -24,7 +24,6 @@
     "noUnusedParameters": false
   },
   "include": [
-    "background/**/*.js",
     "devtools/**/*.js",
     "panel/**/*.js"
   ],

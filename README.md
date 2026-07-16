@@ -17,29 +17,34 @@ When a page loads JavaScript with source maps (`.map` files or inline `//# sourc
 ## Usage
 
 1. Open DevTools on the target page (`F12`)
-2. Click the **Source Exporter** tab (in the DevTools panel row)
-3. Click **Connect to Tab**
-4. Navigate or reload the page — scripts with source maps are captured automatically
-5. The file tree populates with all reconstructed source paths
+2. Click the **Source Exporter** tab in the DevTools panel row
+3. Sources populate automatically — no Connect step, no debugger banner
+4. Reload the page if scripts loaded before DevTools was open
 
 ### Exporting
 
-| Action | How |
-|---|---|
-| Export a single file | Right-click a file → **Export file** |
-| Export a directory | Right-click a folder → **Export directory** |
-| Export everything | Click **Export All** in the header, or right-click → **Export all sources** |
-| Preview a file | Left-click it in the tree |
+| Action               | How                                                            |
+| -------------------- | -------------------------------------------------------------- |
+| Export a single file | Right-click a file → **Export file**                           |
+| Export a directory   | Right-click a folder → **Export directory**                    |
+| Export everything    | Click **Export All** in the header, or right-click → **Export all sources** |
+| Preview a file       | Left-click it in the tree                                      |
 
 Choose **ZIP** or **TAR** format in the toolbar before exporting.
 
+## How it works
+
+The extension uses `chrome.devtools.inspectedWindow.getResources()` plus `onResourceAdded` to passively observe scripts the inspected page loads. For each script it scans the tail for a `sourceMappingURL` comment, resolves the map URL, and parses `sourcesContent`. No `chrome.debugger` attach is performed, so there is **no "Source Exporter started debugging this browser" banner**.
+
+Map content is read from the DevTools resource cache when available (no extra network request, bypasses CORS). Otherwise the panel falls back to a direct `fetch()` using the extension's `<all_urls>` host permission.
+
 ## Notes
 
-- Only files with **embedded source content** (`sourcesContent` in the map) are exported. Files referenced by path only (where the original source isn't embedded) will show in the tree but can't be saved.
-- The debugger must be attached (Connect) before navigating — scripts parsed before attachment are missed. Use **Refresh** (↺) if you reload after connecting.
-- The extension uses the Chrome Debugger API (`Debugger.scriptParsed`) to intercept script loads, then fetches and parses each `.map` file.
+- Only files with **embedded source content** (`sourcesContent` in the map) are exportable. Files referenced by path only show in the tree but can't be saved.
+- Scripts loaded before DevTools was opened may be missed by `onResourceAdded` — reload the page to capture them.
+- TAR uses ustar with a `prefix` field for paths >100 chars; paths over 255 chars fall back to truncated filename only.
 
 ## Limitations
 
-- Manifest V3 extension — no persistent background page. If DevTools is closed and reopened, click Connect again (or the session may auto-reconnect if scripts are still cached).
-- Source maps served from `localhost` require no special permissions. Cross-origin maps depend on CORS headers on the map files.
+- Cross-origin maps still require the page to actually load them. If DevTools didn't fetch the map (e.g. source maps disabled in DevTools settings), the fallback `fetch()` from the extension origin must succeed instead.
+- Manifest V3 — no persistent background page is needed since all work happens in the panel context.
