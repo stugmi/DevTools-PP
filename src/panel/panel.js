@@ -26,10 +26,12 @@ const state = {
   treeModel: null,
   rawTree: {},
   rawTreeModel: null,
+  requestTree: {},
+  requestTreeModel: null,
   rawByURL: new Map(),
   contentTypesByURL: new Map(),
   showMapped: true,
-  showRaw: false,
+  showRaw: true,
   selectedPath: null,
   selectedSection: null,
   contextTarget: null,
@@ -44,6 +46,12 @@ const state = {
   tabs: [],
   activeTabId: null,
   prettyView: prefs.prettyDefault,
+  workspaceSearchCaseSensitive: false,
+  workspaceSearchRegex: false,
+  quickPickerMode: null,
+  quickPickerAllItems: [],
+  quickPickerItems: [],
+  quickPickerIndex: -1,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -57,6 +65,10 @@ const el = {
   btnCopy: $("btn-copy"),
   btnWrap: $("btn-wrap"),
   btnPretty: $("btn-pretty"),
+  btnFindFile: $("btn-find-file"),
+  btnReferences: $("btn-references"),
+  btnSearchAll: $("btn-search-all"),
+  btnCloseSearch: $("btn-close-search"),
   btnSettings: $("btn-settings"),
   settingsPopover: $("settings-popover"),
   optPrettyDefault: $("opt-pretty-default"),
@@ -71,10 +83,7 @@ const el = {
   previewMapBlock: $("preview-map-block"),
   previewTabs: $("preview-tabs"),
   previewPlaceholder: $("preview-placeholder"),
-  previewPre: $("preview-pre"),
-  previewGutter: $("preview-gutter"),
-  previewCode: $("preview-code"),
-  previewCodeContent: $("preview-code-content"),
+  editorContainer: $("editor-container"),
   previewImageWrap: $("preview-image-wrap"),
   previewImage: $("preview-image"),
   previewImageMeta: $("preview-image-meta"),
@@ -91,6 +100,18 @@ const el = {
   progressBar: $("progress-bar"),
   progressTitle: $("progress-title"),
   progressDetail: $("progress-detail"),
+  workspaceSearch: $("workspace-search"),
+  workspaceSearchForm: $("workspace-search-form"),
+  workspaceSearchInput: $("workspace-search-input"),
+  workspaceSearchSummary: $("workspace-search-summary"),
+  workspaceSearchResults: $("workspace-search-results"),
+  btnSearchCase: $("btn-search-case"),
+  btnSearchRegex: $("btn-search-regex"),
+  quickPicker: $("quick-picker"),
+  quickPickerTitle: $("quick-picker-title"),
+  quickPickerHint: $("quick-picker-hint"),
+  quickPickerInput: $("quick-picker-input"),
+  quickPickerResults: $("quick-picker-results"),
 };
 
 function setStatus(kind, text) {
@@ -99,17 +120,21 @@ function setStatus(kind, text) {
 }
 
 function treeFor(section) {
-  return section === "raw" ? state.rawTree : state.sourceTree;
+  if (section === "raw") return state.rawTree;
+  if (section === "requests") return state.requestTree;
+  return state.sourceTree;
 }
 
 function modelFor(section) {
-  return section === "raw" ? state.rawTreeModel : state.treeModel;
+  if (section === "raw") return state.rawTreeModel;
+  if (section === "requests") return state.requestTreeModel;
+  return state.treeModel;
 }
 
 function enabledSections() {
   const out = [];
   if (state.showMapped) out.push("mapped");
-  if (state.showRaw) out.push("raw");
+  if (state.showRaw) out.push("raw", "requests");
   return out;
 }
 
@@ -294,7 +319,22 @@ const TYPE_DEFAULT_EXT = {
   image: "png",
   font: "woff",
   manifest: "json",
+  xhr: "json",
+  fetch: "json",
 };
+
+const API_RESOURCE_TYPES = new Set(["xhr", "fetch", "eventsource", "websocket"]);
+
+function isApiResource(resource) {
+  if (API_RESOURCE_TYPES.has((resource.type || resource._resourceType || "").toLowerCase())) {
+    return true;
+  }
+  const contentType =
+    resource.contentType ||
+    state.contentTypesByURL.get(resource.url || resource.request?.url) ||
+    "";
+  return /(?:json|graphql|xml|event-stream)/i.test(contentType);
+}
 
 function rawResourcePath(url, type) {
   if (!url) return null;
@@ -342,13 +382,15 @@ function addRawResource(r) {
   if (state.rawByURL.has(r.url)) return false;
   const base = rawResourcePath(r.url, r.type);
   if (!base) return false;
+  const section = isApiResource(r) ? "requests" : "raw";
+  const tree = treeFor(section);
   let path = base;
   let i = 1;
-  while (state.rawTree[path]) {
+  while (tree[path]) {
     i++;
     path = base + "." + i;
   }
-  state.rawTree[path] = {
+  tree[path] = {
     content: null,
     sourceURL: r.url,
     scriptURL: r.url,
@@ -357,12 +399,13 @@ function addRawResource(r) {
     contentType: state.contentTypesByURL.get(r.url) || null,
     _resource: r,
   };
-  state.rawByURL.set(r.url, path);
+  state.rawByURL.set(r.url, { path, section });
   return true;
 }
 
 function rebuildRawTree(resources) {
   state.rawTree = {};
+  state.requestTree = {};
   state.rawByURL = new Map();
   for (const r of resources) addRawResource(r);
 }
@@ -409,10 +452,13 @@ async function scanAll() {
 function rebuild() {
   state.treeModel = buildTreeModel(state.sourceTree);
   state.rawTreeModel = buildTreeModel(state.rawTree);
+  state.requestTreeModel = buildTreeModel(state.requestTree);
 
   const mappedCount = Object.keys(state.sourceTree).length;
   const rawCount = Object.keys(state.rawTree).length;
-  const visibleCount = (state.showMapped ? mappedCount : 0) + (state.showRaw ? rawCount : 0);
+  const requestCount = Object.keys(state.requestTree).length;
+  const visibleCount =
+    (state.showMapped ? mappedCount : 0) + (state.showRaw ? rawCount + requestCount : 0);
 
   el.fileCount.textContent = visibleCount || "—";
 
@@ -421,7 +467,7 @@ function rebuild() {
       state.showMapped && !state.showRaw
         ? "Watching — no source maps detected yet"
         : !state.showMapped && state.showRaw
-          ? "Watching — no resources captured yet"
+          ? "Watching — no resources or requests captured yet"
           : "Watching — nothing to show";
     setStatus("active", msg);
     el.btnExportAll.disabled = true;
@@ -433,6 +479,7 @@ function rebuild() {
   const parts = [];
   if (state.showMapped) parts.push(`${mappedCount} mapped`);
   if (state.showRaw) parts.push(`${rawCount} raw`);
+  if (state.showRaw) parts.push(`${requestCount} requests`);
   setStatus("active", `Watching — ${parts.join(", ")}`);
   el.btnExportAll.disabled = false;
   renderTree();
@@ -456,12 +503,14 @@ insp.onResourceAdded.addListener((resource) => {
 network.onNavigated.addListener(() => {
   state.sourceTree = {};
   state.rawTree = {};
+  state.requestTree = {};
   state.rawByURL = new Map();
   state.contentTypesByURL = new Map();
   state.scannedScripts.clear();
   state.rawCache = new Map();
   state.treeModel = null;
   state.rawTreeModel = null;
+  state.requestTreeModel = null;
   state.selectedPath = null;
   state.selectedSection = null;
   state.tabs = [];
@@ -480,9 +529,53 @@ network.onRequestFinished.addListener((request) => {
   const contentType = contentTypeFromHAR(request);
   if (!url || !contentType) return;
   state.contentTypesByURL.set(url, contentType);
-  const path = state.rawByURL.get(url);
-  if (path && state.rawTree[path]) {
-    state.rawTree[path].contentType = contentType;
+  const location = state.rawByURL.get(url);
+  if (location) {
+    const entry = treeFor(location.section)[location.path];
+    if (entry) {
+      entry.contentType = contentType;
+      if (location.section === "raw" && isApiResource(entry)) {
+        delete state.rawTree[location.path];
+        let requestPath = location.path;
+        let suffix = 1;
+        while (state.requestTree[requestPath]) requestPath = `${location.path}.${++suffix}`;
+        state.requestTree[requestPath] = entry;
+        state.rawByURL.set(url, { path: requestPath, section: "requests" });
+        const oldId = tabId(location.path, "raw");
+        const newId = tabId(requestPath, "requests");
+        for (const tab of state.tabs) {
+          if (tab.id !== oldId) continue;
+          tab.id = newId;
+          tab.path = requestPath;
+          tab.section = "requests";
+        }
+        if (state.activeTabId === oldId) state.activeTabId = newId;
+        const wasSelected = state.selectedSection === "raw" && state.selectedPath === location.path;
+        if (wasSelected) {
+          state.selectedSection = "requests";
+          state.selectedPath = requestPath;
+        }
+        renderTabs();
+        rebuild();
+        if (wasSelected) selectFile(requestPath, "requests");
+      }
+    }
+    return;
+  }
+  if (
+    isApiResource({
+      url,
+      type: request._resourceType,
+      contentType,
+    })
+  ) {
+    addRawResource({
+      url,
+      type: request._resourceType || "fetch",
+      contentType,
+      getContent: request.getContent?.bind(request),
+    });
+    rebuild();
   }
 });
 
@@ -537,7 +630,11 @@ function renderTree() {
       const empty = document.createElement("div");
       empty.className = "tree-section-empty";
       empty.textContent =
-        section === "mapped" ? "No source maps detected" : "No resources captured";
+        section === "mapped"
+          ? "No source maps detected"
+          : section === "requests"
+            ? "No API requests captured"
+            : "No deployed resources captured";
       el.treeRoot.appendChild(empty);
       continue;
     }
@@ -549,7 +646,12 @@ function renderSectionHeader(section, count) {
   const header = document.createElement("div");
   header.className = "tree-section-header";
   header.dataset.section = section;
-  const label = section === "mapped" ? "Authored (source-mapped)" : "Deployed (raw)";
+  const label =
+    section === "mapped"
+      ? "Authored (source-mapped)"
+      : section === "requests"
+        ? "Requests (API)"
+        : "Deployed (raw)";
   header.innerHTML = `
     <span class="tree-section-label">${label}</span>
     <span class="tree-section-count">${count}</span>
@@ -585,6 +687,31 @@ function dirHasMatch(dir, filter) {
 
 function dirKey(section, dirPath) {
   return section + "::" + dirPath;
+}
+
+function revealFileInTree(path, section) {
+  const parts = path.split("/").filter(Boolean);
+  let dirPath = "";
+  let expandedAncestor = false;
+
+  for (const part of parts.slice(0, -1)) {
+    dirPath += (dirPath ? "/" : "") + part;
+    const key = dirKey(section, dirPath);
+    if (!openDirs.has(key)) {
+      openDirs.add(key);
+      expandedAncestor = true;
+    }
+  }
+
+  const selector = `.tree-node[data-section="${section}"][data-path="${CSS.escape(path)}"][data-type="file"]`;
+  let row = document.querySelector(selector);
+  if (expandedAncestor || !row) {
+    renderTree();
+    row = document.querySelector(selector);
+  }
+
+  row?.scrollIntoView({ block: "nearest" });
+  return row;
 }
 
 function renderDirNode(dir, container, depth, filter, section) {
@@ -748,21 +875,21 @@ function fileIcon(ext) {
 
 // ── Language detection ───────────────────────────────────────────────────────
 
-const EXT_TO_PRISM = {
+const EXT_TO_LANGUAGE = {
   js: "javascript",
   mjs: "javascript",
   cjs: "javascript",
   ts: "typescript",
   mts: "typescript",
-  jsx: "jsx",
-  tsx: "tsx",
+  jsx: "javascript",
+  tsx: "typescript",
   css: "css",
   scss: "scss",
   sass: "scss",
   html: "html",
   htm: "html",
-  xml: "html",
-  svg: "html",
+  xml: "xml",
+  svg: "xml",
   json: "json",
   jsonc: "json",
   py: "python",
@@ -771,33 +898,33 @@ const EXT_TO_PRISM = {
   java: "java",
   kt: "kotlin",
   kts: "kotlin",
-  sh: "bash",
-  bash: "bash",
-  zsh: "bash",
+  sh: "shell",
+  bash: "shell",
+  zsh: "shell",
   yaml: "yaml",
   yml: "yaml",
   graphql: "graphql",
   gql: "graphql",
-  vue: "HTML",
-  svelte: "HTML",
+  vue: "html",
+  svelte: "html",
   md: "markdown",
 };
 
 const LANG_LABELS = {
   javascript: "JS",
   typescript: "TS",
-  jsx: "JSX",
-  tsx: "TSX",
+  html: "HTML",
+  xml: "XML",
   css: "CSS",
   scss: "SCSS",
-  markup: "HTML",
+
   json: "JSON",
   python: "PY",
   rust: "RS",
   go: "GO",
   java: "JAVA",
   kotlin: "KT",
-  bash: "SH",
+  shell: "SH",
   yaml: "YAML",
   graphql: "GQL",
   markdown: "MD",
@@ -805,7 +932,7 @@ const LANG_LABELS = {
 
 function detectLang(path) {
   const ext = extensionForPath(path);
-  return EXT_TO_PRISM[ext] || null;
+  return EXT_TO_LANGUAGE[ext] || null;
 }
 
 function langFromContentType(contentType) {
@@ -814,8 +941,8 @@ function langFromContentType(contentType) {
   if (mime === "application/json" || mime.endsWith("+json")) return "json";
   if (mime === "text/javascript" || mime === "application/javascript") return "javascript";
   if (mime === "text/css") return "css";
-  if (mime === "text/html" || mime === "application/xhtml+xml") return "markup";
-  if (mime === "application/xml" || mime === "text/xml" || mime.endsWith("+xml")) return "markup";
+  if (mime === "text/html" || mime === "application/xhtml+xml") return "html";
+  if (mime === "application/xml" || mime === "text/xml" || mime.endsWith("+xml")) return "xml";
   return null;
 }
 
@@ -879,7 +1006,7 @@ function canPrettyFormat(lang) {
   if (lang === "json") return true;
   const b = getBeautifier();
   if (!b) return false;
-  return ["javascript", "typescript", "jsx", "tsx", "css", "scss", "markup", "html"].includes(lang);
+  return ["javascript", "typescript", "css", "scss", "html", "xml"].includes(lang);
 }
 
 function prettyFormat(content, lang) {
@@ -888,7 +1015,7 @@ function prettyFormat(content, lang) {
   }
   const b = getBeautifier();
   if (!b) throw new Error("beautifier unavailable");
-  if (lang === "javascript" || lang === "typescript" || lang === "jsx" || lang === "tsx") {
+  if (lang === "javascript" || lang === "typescript") {
     return b.js(content, BEAUTIFY_OPTS);
   }
   if (lang === "css" || lang === "scss") {
@@ -905,7 +1032,7 @@ function commentHeader(lang, lines) {
   if (lang === "html") {
     return "<!--\n" + lines.map((l) => "  " + l).join("\n") + "\n-->\n\n";
   }
-  if (lang === "python" || lang === "yaml" || lang === "bash") {
+  if (lang === "python" || lang === "yaml" || lang === "shell") {
     return lines.map((l) => "# " + l).join("\n") + "\n\n";
   }
   // js, ts, css, scss, default
@@ -942,19 +1069,25 @@ function isImagePath(path, entry) {
   return false;
 }
 
+function isTextEntry(path, entry) {
+  if (isImagePath(path, entry)) return false;
+  if (["font", "media"].includes(entry?.type)) return false;
+  return !/^(?:image|audio|video|font)\//i.test(entry?.contentType || "");
+}
+
 const PIN_SVG = `<svg class="tab-pin-icon" width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
   <path d="M10.97 1.47a.75.75 0 0 1 1.06 0l2.5 2.5a.75.75 0 0 1 0 1.06l-2.06 2.06 1.06 1.06a.75.75 0 0 1-1.06 1.06l-1.06-1.06-2.5 2.5.81.81a.75.75 0 1 1-1.06 1.06l-2.5-2.5L2.78 13.97a.75.75 0 0 1-1.06-1.06l3.38-3.38-2.5-2.5a.75.75 0 1 1 1.06-1.06l.81.81 2.5-2.5L5.91 3.22a.75.75 0 0 1 1.06-1.06L8.03 3.22 10.09 1.16z"/>
 </svg>`;
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 
-function openFile(path, section) {
+function openFile(path, section, position) {
   const id = tabId(path, section);
   const existing = state.tabs.find((t) => t.id === id);
   if (existing) {
     state.activeTabId = id;
     renderTabs();
-    selectFile(path, section);
+    selectFile(path, section, position);
     return;
   }
 
@@ -969,7 +1102,7 @@ function openFile(path, section) {
     state.activeTabId = id;
   }
   renderTabs();
-  selectFile(path, section);
+  selectFile(path, section, position);
 }
 
 function pinTab(id, forcePinned) {
@@ -996,7 +1129,7 @@ function closeTab(id) {
       renderTabs();
       resetPreview();
       // refresh tree to drop selected highlight
-      if (state.treeModel || state.rawTreeModel) renderTree();
+      if (state.treeModel || state.rawTreeModel || state.requestTreeModel) renderTree();
     }
   } else {
     renderTabs();
@@ -1019,16 +1152,16 @@ function renderTabs() {
     if (t.pinned) tabEl.classList.add("pinned");
     else tabEl.classList.add("preview");
     tabEl.dataset.tabId = t.id;
+    const sectionLabel =
+      t.section === "mapped" ? "mapped" : t.section === "requests" ? "request" : "raw";
     tabEl.title =
-      (t.section === "mapped" ? "[mapped] " : "[raw] ") +
-      t.path +
-      (t.pinned ? "" : " — preview tab (double-click to pin)");
+      `[${sectionLabel}] ` + t.path + (t.pinned ? "" : " — preview tab (double-click to pin)");
 
     const filename = t.path.split("/").pop() || t.path;
 
     const name = document.createElement("span");
     name.className = "tab-name";
-    name.textContent = filename;
+    name.textContent = filename + (t.dirty ? " •" : "");
 
     const close = document.createElement("span");
     close.className = "tab-close";
@@ -1087,12 +1220,6 @@ function urlBasename(u) {
   }
 }
 
-function renderGutter(lineCount) {
-  const lines = new Array(lineCount);
-  for (let i = 0; i < lineCount; i++) lines[i] = i + 1;
-  el.previewGutter.textContent = lines.join("\n");
-}
-
 function setFooterURLs(entry) {
   el.previewScriptUrl.textContent = urlBasename(entry.scriptURL);
   el.previewScriptUrl.title = entry.scriptURL || "";
@@ -1107,9 +1234,9 @@ function setFooterURLs(entry) {
   }
 }
 
-function renderContent(content, lang, badgeFallback) {
-  let display = content;
-  if (state.prettyView && canPrettyFormat(lang)) {
+function renderContent(content, lang, badgeFallback, position) {
+  let display = position?.formattedContent || content;
+  if (!position?.formattedContent && state.prettyView && canPrettyFormat(lang)) {
     const r = tryPretty(content, lang);
     if (r.ok) display = r.content;
   }
@@ -1121,19 +1248,26 @@ function renderContent(content, lang, badgeFallback) {
   el.previewActions.style.display = "flex";
   el.previewPlaceholder.style.display = "none";
   el.previewImageWrap.style.display = "none";
-  el.previewPre.style.display = "grid";
+  el.editorContainer.style.display = "block";
 
   updatePrettyButton(lang);
 
-  const langClass = lang ? `language-${lang}` : "language-plaintext";
-  el.previewCodeContent.className = langClass;
-  el.previewCodeContent.textContent = display;
-
-  if (window.Prism) Prism.highlightElement(el.previewCodeContent);
+  const document = {
+    id:
+      state.selectedPath && state.selectedSection
+        ? tabId(state.selectedPath, state.selectedSection)
+        : "virtual::preview",
+    path: state.selectedPath || "preview.txt",
+    section: state.selectedSection || "virtual",
+    content: display,
+    language: lang || "plaintext",
+  };
+  SourceEditor.show(document, position).catch((error) => {
+    setStatus("inactive", `Editor failed: ${error.message}`);
+  });
 
   const lines = display.split("\n").length;
   const bytes = new TextEncoder().encode(display).length;
-  renderGutter(lines);
   el.previewLangBadge.textContent =
     (lang && LANG_LABELS[lang]) || badgeFallback || (lang || "TXT").toUpperCase();
   el.previewMeta.textContent = `${lines.toLocaleString()} lines · ${formatBytes(bytes)}`;
@@ -1143,7 +1277,8 @@ function renderContent(content, lang, badgeFallback) {
 function resetPreview() {
   state.lastPreviewText = "";
   state.lastPreviewOriginal = "";
-  el.previewPre.style.display = "none";
+  el.editorContainer.style.display = "none";
+  SourceEditor.hide().catch(() => {});
   el.previewImageWrap.style.display = "none";
   el.previewFooter.style.display = "none";
   el.previewActions.style.display = "none";
@@ -1158,14 +1293,12 @@ function resetPreview() {
   `;
 }
 
-async function selectFile(path, section) {
+async function selectFile(path, section, position) {
   state.selectedPath = path;
   state.selectedSection = section;
 
   document.querySelectorAll(".tree-node.selected").forEach((n) => n.classList.remove("selected"));
-  const row = document.querySelector(
-    `.tree-node[data-section="${section}"][data-path="${CSS.escape(path)}"][data-type="file"]`
-  );
+  const row = revealFileInTree(path, section);
   if (row) row.classList.add("selected");
 
   const tree = treeFor(section);
@@ -1186,7 +1319,7 @@ async function selectFile(path, section) {
     !entry.sourceURL.startsWith("data:")
   ) {
     renderContent("Loading…", null, "…");
-    const fetched = await loadRawByURL(entry.sourceURL);
+    const fetched = await loadRawByURL(entry.sourceURL, entry._resource);
     if (state.selectedPath !== path || state.selectedSection !== section) return;
     if (fetched != null) {
       entry.content = fetched;
@@ -1199,17 +1332,18 @@ async function selectFile(path, section) {
 
   if (entry.content != null) {
     const lang = detectEntryLang(path, entry);
-    renderContent(entry.content, lang, badgeForPath(path, lang));
+    renderContent(entry.content, lang, badgeForPath(path, lang), position);
   } else {
     state.lastPreviewText = "";
     state.lastPreviewOriginal = "";
     el.previewActions.style.display = "flex";
     el.previewFooter.style.display = "flex";
-    el.previewPre.style.display = "none";
+    el.editorContainer.style.display = "none";
+    SourceEditor.hide().catch(() => {});
     el.previewPlaceholder.style.display = "flex";
     const failed = entry.fetchStatus === "missing";
     const headline = failed
-      ? section === "raw"
+      ? section === "raw" || section === "requests"
         ? "Failed to fetch resource"
         : "Source not embedded and could not be fetched"
       : "No source content embedded in map";
@@ -1232,7 +1366,8 @@ function renderImage(entry, path) {
   state.lastPreviewOriginal = "";
   el.previewActions.style.display = "flex";
   el.previewPlaceholder.style.display = "none";
-  el.previewPre.style.display = "none";
+  el.editorContainer.style.display = "none";
+  SourceEditor.hide().catch(() => {});
   el.previewImageWrap.style.display = "flex";
 
   const url = entry.sourceURL || entry.scriptURL || "";
@@ -1263,11 +1398,18 @@ function renderImage(entry, path) {
   el.previewFooter.style.display = "flex";
 }
 
-async function loadRawByURL(url) {
+async function loadRawByURL(url, resource) {
   if (state.rawCache.has(url)) return state.rawCache.get(url);
 
-  const resources = await getResources();
-  const r = resources.find((x) => x.url === url);
+  let r = resource;
+  if (!r) {
+    const location = state.rawByURL.get(url);
+    r = location && treeFor(location.section)[location.path]?._resource;
+  }
+  if (!r) {
+    const resources = await getResources();
+    r = resources.find((item) => item.url === url);
+  }
   let content = null;
   if (r) {
     content = decodeResource(await getResourceContent(r));
@@ -1371,12 +1513,8 @@ function hideProgress() {
   el.progressOverlay.style.display = "none";
 }
 
-function archivePathFor(item) {
-  // When both sections are visible, prefix to avoid collisions and clarify origin.
-  if (state.showMapped && state.showRaw) {
-    const prefix = item.section === "mapped" ? "mapped" : "raw";
-    return prefix + "/" + item.path;
-  }
+function archivePathFor(item, sections) {
+  if (sections.size > 1) return item.section + "/" + item.path;
   return item.path;
 }
 
@@ -1384,19 +1522,20 @@ async function exportItems(items, archiveName) {
   const format = el.formatSelect.value;
   showProgress(`Building ${format.toUpperCase()} archive...`);
 
-  const rawItems = items.filter((it) => it.section === "raw");
+  const rawItems = items.filter((it) => it.section === "raw" || it.section === "requests");
   if (rawItems.length) await ensureRawContent(rawItems);
 
   const applyPretty = prefs.prettyOnExport;
   let prettyFailed = 0;
   let prettyApplied = 0;
+  const sections = new Set(items.map((item) => item.section));
 
   const files = items
     .map((it) => {
       const tree = treeFor(it.section);
       const entry = tree[it.path];
       if (!entry) return null;
-      const archivePath = archivePathFor(it);
+      const archivePath = archivePathFor(it, sections);
       if (entry.content == null) {
         return { path: archivePath, content: makePlaceholder(it.path, entry), placeholder: true };
       }
@@ -1630,7 +1769,7 @@ async function ensureRawContent(items) {
     const it = missing[i];
     const tree = treeFor(it.section);
     updateProgress((i / missing.length) * 30, `Fetching ${it.path}`);
-    const c = await loadRawByURL(tree[it.path].sourceURL);
+    const c = await loadRawByURL(tree[it.path].sourceURL, tree[it.path]._resource);
     if (c != null) {
       tree[it.path].content = c;
       tree[it.path].fetchStatus = "ok";
@@ -1642,10 +1781,469 @@ async function ensureRawContent(items) {
 
 // ── Wire UI ──────────────────────────────────────────────────────────────────
 
+async function getWorkspaceDocuments() {
+  const items = [];
+  for (const section of ["mapped", "raw", "requests"]) {
+    for (const path of Object.keys(treeFor(section))) items.push({ path, section });
+  }
+
+  await Promise.all(
+    items.map(async (item) => {
+      const entry = treeFor(item.section)[item.path];
+      if (
+        entry &&
+        entry.content == null &&
+        entry.fetchStatus !== "missing" &&
+        isTextEntry(item.path, entry) &&
+        entry.sourceURL &&
+        !entry.sourceURL.startsWith("data:")
+      ) {
+        const content = await loadRawByURL(entry.sourceURL, entry._resource);
+        if (content != null) {
+          entry.content = content;
+          entry.fetchStatus = "ok";
+        }
+      }
+    })
+  );
+
+  return items.flatMap((item) => {
+    const entry = treeFor(item.section)[item.path];
+    if (!entry || typeof entry.content !== "string" || !isTextEntry(item.path, entry)) return [];
+    return [
+      {
+        id: tabId(item.path, item.section),
+        path: item.path,
+        section: item.section,
+        content: entry.content,
+        language: detectEntryLang(item.path, entry) || "plaintext",
+      },
+    ];
+  });
+}
+
+function updateEditedDocument(editorDocument, content) {
+  const entry = treeFor(editorDocument.section)[editorDocument.path];
+  if (!entry) return;
+  entry.content = content;
+  entry.fetchStatus = "ok";
+  state.lastPreviewOriginal = content;
+  state.lastPreviewText = content;
+  const tab = state.tabs.find((item) => item.id === editorDocument.id);
+  if (tab && !tab.dirty) {
+    tab.dirty = true;
+    renderTabs();
+  }
+  const lines = content.split("\n").length;
+  const bytes = new TextEncoder().encode(content).length;
+  el.previewMeta.textContent = `${lines.toLocaleString()} lines · ${formatBytes(bytes)} · modified`;
+}
+
+SourceEditor.configure({
+  getDocuments: getWorkspaceDocuments,
+  onChange: updateEditedDocument,
+  openDocument(id, position) {
+    const separator = id.indexOf("::");
+    if (separator === -1) return;
+    openFile(id.slice(separator + 2), id.slice(0, separator), position);
+  },
+});
+
+function setWorkspaceSearchOpen(open) {
+  el.workspaceSearch.hidden = !open;
+  if (open) {
+    el.workspaceSearchInput.focus();
+    el.workspaceSearchInput.select();
+  }
+}
+
+function escapeSearchPattern(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function searchPattern(query) {
+  const source = state.workspaceSearchRegex ? query : escapeSearchPattern(query);
+  return new RegExp(source, state.workspaceSearchCaseSensitive ? "g" : "gi");
+}
+
+function searchLine(pattern, line) {
+  const matches = [];
+  pattern.lastIndex = 0;
+  for (const match of line.matchAll(pattern)) {
+    const length = Math.max(match[0].length, 1);
+    matches.push({ column: match.index + 1, length });
+    if (match[0].length === 0) pattern.lastIndex = match.index + 1;
+  }
+  return matches;
+}
+
+function searchSnippet(text, column, length) {
+  const index = column - 1;
+  const start = Math.max(0, index - 70);
+  const end = Math.min(text.length, index + length + 110);
+  const before = text.slice(start, index);
+  const hit = text.slice(index, index + length);
+  const after = text.slice(index + length, end);
+  return `${start ? "…" : ""}${escapeHtml(before)}<mark>${escapeHtml(hit)}</mark>${escapeHtml(after)}${end < text.length ? "…" : ""}`;
+}
+
+function openSearchMatch(match) {
+  const position = formattedSearchPosition(match) || {
+    line: match.line,
+    column: match.column,
+    endColumn: match.column + match.length,
+  };
+  openFile(match.editorDocument.path, match.editorDocument.section, position);
+}
+
+function offsetForLineColumn(content, line, column) {
+  let offset = 0;
+  let currentLine = 1;
+  while (currentLine < line) {
+    const nextLine = content.indexOf("\n", offset);
+    if (nextLine === -1) return content.length;
+    offset = nextLine + 1;
+    currentLine++;
+  }
+  return Math.min(content.length, offset + Math.max(0, column - 1));
+}
+
+function positionForOffset(content, offset) {
+  const before = content.slice(0, Math.max(0, Math.min(offset, content.length)));
+  const lines = before.split("\n");
+  return { line: lines.length, column: lines[lines.length - 1].length + 1 };
+}
+
+function mapOffsetIgnoringWhitespace(source, formatted, targetOffset) {
+  let sourceOffset = 0;
+  let formattedOffset = 0;
+  const whitespace = /\s/;
+  while (
+    sourceOffset < targetOffset &&
+    sourceOffset < source.length &&
+    formattedOffset < formatted.length
+  ) {
+    if (source[sourceOffset] === formatted[formattedOffset]) {
+      sourceOffset++;
+      formattedOffset++;
+      continue;
+    }
+    if (whitespace.test(source[sourceOffset])) {
+      while (sourceOffset < targetOffset && whitespace.test(source[sourceOffset])) sourceOffset++;
+      while (formattedOffset < formatted.length && whitespace.test(formatted[formattedOffset])) {
+        formattedOffset++;
+      }
+      continue;
+    }
+    if (whitespace.test(formatted[formattedOffset])) {
+      formattedOffset++;
+      continue;
+    }
+    const nextFormatted = formatted.indexOf(source[sourceOffset], formattedOffset + 1);
+    const nextSource = source.indexOf(formatted[formattedOffset], sourceOffset + 1);
+    const formattedDistance = nextFormatted === -1 ? Infinity : nextFormatted - formattedOffset;
+    const sourceDistance = nextSource === -1 ? Infinity : nextSource - sourceOffset;
+    if (formattedDistance <= sourceDistance && formattedDistance < 256) {
+      formattedOffset = nextFormatted;
+    } else if (sourceDistance < 256) {
+      sourceOffset = Math.min(nextSource, targetOffset);
+    } else {
+      sourceOffset++;
+      formattedOffset++;
+    }
+  }
+  return Math.min(formatted.length, formattedOffset + Math.max(0, targetOffset - sourceOffset));
+}
+
+function formattedSearchPosition(match) {
+  if (!state.prettyView || !canPrettyFormat(match.editorDocument.language)) return null;
+  const formatted = tryPretty(match.editorDocument.content, match.editorDocument.language);
+  if (!formatted.ok) return null;
+
+  const pattern = new RegExp(match.patternSource, match.patternFlags);
+  let ordinal = 0;
+  const lines = formatted.content.split("\n");
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    for (const lineMatch of searchLine(pattern, lines[lineIndex])) {
+      if (ordinal === match.ordinal) {
+        return {
+          line: lineIndex + 1,
+          column: lineMatch.column,
+          endColumn: lineMatch.column + lineMatch.length,
+          formattedContent: formatted.content,
+        };
+      }
+      ordinal++;
+    }
+  }
+
+  const rawStart = offsetForLineColumn(match.editorDocument.content, match.line, match.column);
+  const rawEnd = rawStart + match.length;
+  const formattedStart = mapOffsetIgnoringWhitespace(
+    match.editorDocument.content,
+    formatted.content,
+    rawStart
+  );
+  const formattedEnd = mapOffsetIgnoringWhitespace(
+    match.editorDocument.content,
+    formatted.content,
+    rawEnd
+  );
+  const start = positionForOffset(formatted.content, formattedStart);
+  const end = positionForOffset(formatted.content, formattedEnd);
+  if (start.line !== end.line)
+    return { ...start, endColumn: start.column, formattedContent: formatted.content };
+  return {
+    ...start,
+    endColumn: Math.max(start.column, end.column),
+    formattedContent: formatted.content,
+  };
+}
+
+function setActiveSearchResult(index) {
+  const results = Array.from(
+    el.workspaceSearchResults.querySelectorAll(".workspace-search-result")
+  );
+  if (!results.length) return;
+  const next = Math.max(0, Math.min(index, results.length - 1));
+  results.forEach((result, resultIndex) => result.classList.toggle("active", resultIndex === next));
+  results[next].scrollIntoView({ block: "nearest" });
+  el.workspaceSearchResults.dataset.activeIndex = String(next);
+}
+
+let workspaceSearchRequest = 0;
+
+async function searchWorkspace(query) {
+  const request = ++workspaceSearchRequest;
+  const needle = query.trim();
+  el.workspaceSearchResults.innerHTML = "";
+  delete el.workspaceSearchResults.dataset.activeIndex;
+  if (!needle) {
+    el.workspaceSearchSummary.textContent =
+      "Enter text to search Authored, Deployed, and Requests.";
+    return;
+  }
+
+  el.workspaceSearchSummary.textContent = "Loading website files…";
+  const documents = await getWorkspaceDocuments();
+  if (request !== workspaceSearchRequest) return;
+  let pattern;
+  try {
+    pattern = searchPattern(needle);
+  } catch (error) {
+    el.workspaceSearchSummary.textContent = `Invalid regular expression: ${error.message}`;
+    return;
+  }
+  const matches = [];
+
+  for (const editorDocument of documents) {
+    const lines = editorDocument.content.split("\n");
+    let ordinal = 0;
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      for (const lineMatch of searchLine(pattern, lines[lineIndex])) {
+        matches.push({
+          editorDocument,
+          line: lineIndex + 1,
+          column: lineMatch.column,
+          length: lineMatch.length,
+          text: lines[lineIndex],
+          ordinal,
+          patternSource: pattern.source,
+          patternFlags: pattern.flags,
+        });
+        ordinal++;
+        if (matches.length >= 500) break;
+      }
+      if (matches.length >= 500) break;
+    }
+    if (matches.length >= 500) break;
+  }
+
+  const groups = new Map();
+  for (const match of matches) {
+    const id = match.editorDocument.id;
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(match);
+  }
+  el.workspaceSearchSummary.textContent = `${matches.length}${matches.length === 500 ? "+" : ""} matches in ${groups.size} files`;
+  const fragment = document.createDocumentFragment();
+  for (const groupMatches of groups.values()) {
+    const editorDocument = groupMatches[0].editorDocument;
+    const parts = editorDocument.path.split("/");
+    const fileName = parts.pop() || editorDocument.path;
+    const group = document.createElement("section");
+    group.className = "search-file-group";
+    const header = document.createElement("button");
+    header.type = "button";
+    header.className = "search-file-header";
+    header.innerHTML = `<span class="search-file-chevron">▼</span><span class="search-file-name">${escapeHtml(fileName)}</span><span class="search-file-path">${escapeHtml(parts.join("/"))} · ${escapeHtml(editorDocument.section)}</span><span class="search-file-count">${groupMatches.length}</span>`;
+    header.addEventListener("click", () => group.classList.toggle("collapsed"));
+    const matchContainer = document.createElement("div");
+    matchContainer.className = "search-file-matches";
+    for (const match of groupMatches) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "workspace-search-result";
+      button.innerHTML = `<span class="search-result-location">${match.line}:${match.column}</span><code>${searchSnippet(match.text, match.column, match.length)}</code>`;
+      button.addEventListener("click", () => openSearchMatch(match));
+      matchContainer.appendChild(button);
+    }
+    group.appendChild(header);
+    group.appendChild(matchContainer);
+    fragment.appendChild(group);
+  }
+  el.workspaceSearchResults.appendChild(fragment);
+}
+
+let workspaceSearchTimer = null;
+
+function queueWorkspaceSearch() {
+  clearTimeout(workspaceSearchTimer);
+  workspaceSearchTimer = setTimeout(() => {
+    searchWorkspace(el.workspaceSearchInput.value).catch((error) => {
+      el.workspaceSearchSummary.textContent = `Search failed: ${error.message}`;
+    });
+  }, 120);
+}
+
+function commandPaletteItems() {
+  return [
+    {
+      label: "Open File",
+      detail: "Ctrl+P",
+      run: () => openQuickPicker("files"),
+    },
+    {
+      label: "Search: Find in All Files",
+      detail: "Ctrl+Shift+F",
+      run: () => setWorkspaceSearchOpen(true),
+    },
+    {
+      label: "Search: Find in Current File",
+      detail: "Ctrl+F",
+      run: () => SourceEditor.focusFind(),
+    },
+    {
+      label: "Go to Definition",
+      detail: "F12 / Ctrl+Click",
+      run: () => SourceEditor.goToDefinition(),
+    },
+    {
+      label: "Find All References",
+      detail: "",
+      run: () => SourceEditor.findReferences(),
+    },
+    {
+      label: "View: Toggle Word Wrap",
+      detail: "",
+      run: () => el.btnWrap.click(),
+    },
+    {
+      label: "Format: Pretty Print Current File",
+      detail: "",
+      run: () => el.btnPretty.click(),
+    },
+    {
+      label: "Sources: Refresh",
+      detail: "",
+      run: () => el.btnRefresh.click(),
+    },
+    {
+      label: "Export: Export All",
+      detail: "",
+      run: () => el.btnExportAll.click(),
+    },
+  ];
+}
+
+function quickPickerMatches(item, query) {
+  if (!query) return true;
+  const haystack = `${item.label} ${item.detail || ""}`.toLocaleLowerCase();
+  return query
+    .toLocaleLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((part) => haystack.includes(part));
+}
+
+function renderQuickPicker() {
+  const query = el.quickPickerInput.value.trim().replace(/^>/, "").trim();
+  state.quickPickerItems = state.quickPickerAllItems.filter((item) =>
+    quickPickerMatches(item, query)
+  );
+  state.quickPickerIndex = state.quickPickerItems.length ? 0 : -1;
+  el.quickPickerResults.innerHTML = "";
+  const fragment = document.createDocumentFragment();
+  for (const [index, item] of state.quickPickerItems.slice(0, 200).entries()) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "quick-picker-item";
+    button.setAttribute("role", "option");
+    button.classList.toggle("active", index === state.quickPickerIndex);
+    button.innerHTML = `<span class="quick-picker-item-label">${escapeHtml(item.label)}</span><span class="quick-picker-item-detail">${escapeHtml(item.detail || "")}</span>`;
+    button.addEventListener("click", () => selectQuickPickerItem(index));
+    fragment.appendChild(button);
+  }
+  el.quickPickerResults.appendChild(fragment);
+}
+
+function setQuickPickerIndex(index) {
+  const buttons = Array.from(el.quickPickerResults.querySelectorAll(".quick-picker-item"));
+  if (!buttons.length) return;
+  state.quickPickerIndex = (index + buttons.length) % buttons.length;
+  buttons.forEach((button, itemIndex) =>
+    button.classList.toggle("active", itemIndex === state.quickPickerIndex)
+  );
+  buttons[state.quickPickerIndex].scrollIntoView({ block: "nearest" });
+}
+
+function closeQuickPicker() {
+  el.quickPicker.hidden = true;
+  state.quickPickerMode = null;
+  state.quickPickerAllItems = [];
+  state.quickPickerItems = [];
+  state.quickPickerIndex = -1;
+}
+
+function selectQuickPickerItem(index) {
+  const item = state.quickPickerItems[index];
+  if (!item) return;
+  closeQuickPicker();
+  item.run();
+}
+
+let quickPickerRequest = 0;
+
+async function openQuickPicker(mode) {
+  const request = ++quickPickerRequest;
+  state.quickPickerMode = mode;
+  el.quickPicker.hidden = false;
+  el.quickPickerTitle.textContent = mode === "commands" ? "Command Palette" : "Open File";
+  el.quickPickerHint.textContent = mode === "commands" ? "Ctrl+Shift+P" : "Ctrl+P";
+  el.quickPickerInput.placeholder = mode === "commands" ? "Type a command…" : "Type a file name…";
+  el.quickPickerInput.value = "";
+  el.quickPickerResults.innerHTML = "";
+  if (mode === "commands") {
+    state.quickPickerAllItems = commandPaletteItems();
+  } else {
+    state.quickPickerAllItems = enabledSections().flatMap((section) =>
+      Object.keys(treeFor(section)).map((path) => ({
+        label: path.split("/").pop() || path,
+        detail: `${path} · ${section}`,
+        run: () => openFile(path, section),
+      }))
+    );
+  }
+  if (request !== quickPickerRequest || state.quickPickerMode !== mode) return;
+  renderQuickPicker();
+  el.quickPickerInput.focus();
+}
+
 el.btnRefresh.addEventListener("click", () => {
   state.scannedScripts.clear();
   state.sourceTree = {};
   state.rawTree = {};
+  state.requestTree = {};
   state.rawByURL = new Map();
   state.rawCache = new Map();
   scanAll();
@@ -1677,7 +2275,7 @@ el.viewToggle.addEventListener("click", (e) => {
   // close tabs whose section is no longer visible
   state.tabs = state.tabs.filter((t) => {
     if (t.section === "mapped") return state.showMapped;
-    if (t.section === "raw") return state.showRaw;
+    if (t.section === "raw" || t.section === "requests") return state.showRaw;
     return false;
   });
   if (!state.tabs.find((t) => t.id === state.activeTabId)) {
@@ -1728,7 +2326,7 @@ el.btnCopy.addEventListener("click", async () => {
 let wrapEnabled = false;
 el.btnWrap.addEventListener("click", () => {
   wrapEnabled = !wrapEnabled;
-  el.previewPre.classList.toggle("wrap-mode", wrapEnabled);
+  SourceEditor.toggleWrap(wrapEnabled).catch(() => {});
   el.btnWrap.classList.toggle("active", wrapEnabled);
 });
 
@@ -1765,8 +2363,110 @@ document.addEventListener("click", () => {
 
 el.filterInput.addEventListener("input", () => {
   state.filterText = el.filterInput.value.trim();
-  if (state.treeModel || state.rawTreeModel) renderTree();
+  if (state.treeModel || state.rawTreeModel || state.requestTreeModel) renderTree();
 });
+
+el.btnFindFile.addEventListener("click", () => SourceEditor.focusFind());
+el.btnReferences.addEventListener("click", () => SourceEditor.findReferences());
+el.btnSearchAll.addEventListener("click", () => setWorkspaceSearchOpen(true));
+el.btnCloseSearch.addEventListener("click", () => setWorkspaceSearchOpen(false));
+el.workspaceSearchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  searchWorkspace(el.workspaceSearchInput.value).catch((error) => {
+    el.workspaceSearchSummary.textContent = `Search failed: ${error.message}`;
+  });
+});
+el.workspaceSearchInput.addEventListener("input", queueWorkspaceSearch);
+el.workspaceSearchInput.addEventListener("keydown", (event) => {
+  const activeIndex = Number(el.workspaceSearchResults.dataset.activeIndex ?? -1);
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    setActiveSearchResult(activeIndex + 1);
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    setActiveSearchResult(activeIndex < 0 ? 0 : activeIndex - 1);
+  } else if (event.key === "Enter" && activeIndex >= 0) {
+    event.preventDefault();
+    el.workspaceSearchResults.querySelector(".workspace-search-result.active")?.click();
+  }
+});
+
+function toggleSearchOption(button, stateKey) {
+  state[stateKey] = !state[stateKey];
+  button.setAttribute("aria-pressed", state[stateKey] ? "true" : "false");
+  queueWorkspaceSearch();
+}
+
+el.btnSearchCase.addEventListener("click", () =>
+  toggleSearchOption(el.btnSearchCase, "workspaceSearchCaseSensitive")
+);
+el.btnSearchRegex.addEventListener("click", () =>
+  toggleSearchOption(el.btnSearchRegex, "workspaceSearchRegex")
+);
+
+el.quickPickerInput.addEventListener("input", renderQuickPicker);
+el.quickPickerInput.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    setQuickPickerIndex(state.quickPickerIndex + 1);
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    setQuickPickerIndex(state.quickPickerIndex - 1);
+  } else if (event.key === "Enter") {
+    event.preventDefault();
+    selectQuickPickerItem(state.quickPickerIndex);
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closeQuickPicker();
+  }
+});
+el.quickPicker.addEventListener("mousedown", (event) => {
+  if (event.target === el.quickPicker) closeQuickPicker();
+});
+
+// This document can only receive focused key events while its DevTools panel is active.
+// Visibility messages tighten the guard after Chrome has created the panel window.
+let panelVisible = true;
+window.addEventListener("message", (event) => {
+  if (event.data?.type === "PANEL_SHOWN") panelVisible = true;
+  if (event.data?.type === "PANEL_HIDDEN") {
+    panelVisible = false;
+    closeQuickPicker();
+  }
+});
+
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (!panelVisible || !document.hasFocus() || event.altKey) return;
+    const modifier = event.ctrlKey || event.metaKey;
+    const key = event.key.toLocaleLowerCase();
+    if (modifier && event.shiftKey && key === "f") {
+      event.preventDefault();
+      event.stopPropagation();
+      setWorkspaceSearchOpen(true);
+      return;
+    }
+    if (modifier && event.shiftKey && key === "p") {
+      event.preventDefault();
+      event.stopPropagation();
+      openQuickPicker("commands").catch((error) => setStatus("inactive", error.message));
+      return;
+    }
+    if (modifier && !event.shiftKey && key === "p") {
+      event.preventDefault();
+      event.stopPropagation();
+      openQuickPicker("files").catch((error) => setStatus("inactive", error.message));
+      return;
+    }
+    if (event.key === "Escape" && !el.quickPicker.hidden) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeQuickPicker();
+    }
+  },
+  true
+);
 
 el.ctxExportFile.addEventListener("click", () => {
   hideContextMenu();
@@ -1798,13 +2498,6 @@ function formatBytes(n) {
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
-
-el.previewCodeContent.contentEditable = "true";
-el.previewCodeContent.setAttribute("autocorrect", "off");
-el.previewCodeContent.setAttribute("autocapitalize", "off");
-for (const evt of ["beforeinput", "paste", "drop", "cut", "dragstart"]) {
-  el.previewCodeContent.addEventListener(evt, (e) => e.preventDefault());
-}
 
 renderTabs();
 scanAll();

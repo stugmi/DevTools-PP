@@ -8,10 +8,17 @@ When a page loads JavaScript with source maps (`.map` files or inline `//# sourc
 
 ## Installing (Developer Mode)
 
+Build once first:
+
+```powershell
+npm install
+npm run build
+```
+
 1. Open Chrome and go to `chrome://extensions`
 2. Enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked**
-4. Select this folder (`source-exporter/`)
+4. Select the generated `source-exporter/dist/` folder
 5. The extension will appear in your toolbar
 
 ## Usage
@@ -23,12 +30,26 @@ When a page loads JavaScript with source maps (`.map` files or inline `//# sourc
 
 ### Exporting
 
-| Action               | How                                                            |
-| -------------------- | -------------------------------------------------------------- |
-| Export a single file | Right-click a file → **Export file**                           |
-| Export a directory   | Right-click a folder → **Export directory**                    |
+| Action               | How                                                                         |
+| -------------------- | --------------------------------------------------------------------------- |
+| Export a single file | Right-click a file → **Export file**                                        |
+| Export a directory   | Right-click a folder → **Export directory**                                 |
 | Export everything    | Click **Export All** in the header, or right-click → **Export all sources** |
-| Preview a file       | Left-click it in the tree                                      |
+| Preview a file       | Left-click it in the tree                                                   |
+
+### Editing and navigation
+
+- Monaco provides editable source models, syntax highlighting, completion, bracket guides, and minimap.
+- Press **Ctrl+F** or click **Find** to search the current file.
+- Press **Ctrl+Shift+F** or click **Search all** for grouped, live results across every captured file. Results include highlighted context and jump to the exact match.
+- Press **Ctrl+P** to open any captured file by name.
+- Press **Ctrl+Shift+P** to open the Source Exporter command palette.
+- Hold **Ctrl** and click a symbol, or press **F12**, to jump to its closest preceding declaration or assignment.
+- Press **Shift+F12** or click **References** to list references across captured website files.
+- Source Exporter shortcuts only apply while its DevTools panel has focus.
+- Edited content is used by Copy and Export and marked with a dot in its tab.
+
+The tree separates source-mapped files under **Authored**, deployed files under **Deployed**, and API responses under **Requests**.
 
 Choose **ZIP** or **TAR** format in the toolbar before exporting.
 
@@ -37,6 +58,8 @@ Choose **ZIP** or **TAR** format in the toolbar before exporting.
 The extension uses `chrome.devtools.inspectedWindow.getResources()` plus `onResourceAdded` to passively observe scripts the inspected page loads. For each script it scans the tail for a `sourceMappingURL` comment, resolves the map URL, and parses `sourcesContent`. No `chrome.debugger` attach is performed, so there is **no "Source Exporter started debugging this browser" banner**.
 
 Map content is read from the DevTools resource cache when available (no extra network request, bypasses CORS). Otherwise the panel falls back to a direct `fetch()` using the extension's `<all_urls>` host permission.
+
+Runtime extension files live under `src/`. `npm run build` creates a clean unpacked extension in `dist/` and adds Monaco's local runtime assets; no remote scripts are used.
 
 ## Notes
 
@@ -47,4 +70,3 @@ Map content is read from the DevTools resource cache when available (no extra ne
 ## Limitations
 
 - Cross-origin maps still require the page to actually load them. If DevTools didn't fetch the map (e.g. source maps disabled in DevTools settings), the fallback `fetch()` from the extension origin must succeed instead.
-- Manifest V3 — no persistent background page is needed since all work happens in the panel context.

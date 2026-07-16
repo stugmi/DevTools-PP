@@ -23,14 +23,6 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": [
-    "devtools/**/*.js",
-    "panel/**/*.js"
-  ],
-  "exclude": [
-    "node_modules",
-    "vendor",
-    "dist",
-    "out"
-  ]
+  "include": ["src/devtools/**/*.js", "src/panel/**/*.js", "scripts/**/*.js"],
+  "exclude": ["node_modules", "src/vendor", "dist", "out"]
 }

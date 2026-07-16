@@ -1,11 +1,10 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>Source Exporter</title>
-  <link rel="stylesheet" href="panel.css">
-  <link rel="stylesheet" href="prism-devtools.css">
+  <link rel="stylesheet" href="panel.css" />
 </head>
 
 <body>
@@ -28,9 +27,7 @@
               d="M17.91 14c-.478 2.833-2.943 5-5.91 5-3.308 0-6-2.692-6-6s2.692-6 6-6h2.172l-2.086 2.086L13.5 10.5 18 6l-4.5-4.5-1.414 1.414L14.172 5H12c-4.418 0-8 3.582-8 8s3.582 8 8 8c4.08 0 7.438-3.055 7.93-7h-2.02z" />
           </svg>
         </button>
-        <button id="btn-export-all" class="btn btn-primary" disabled>
-          Export All
-        </button>
+        <button id="btn-export-all" class="btn btn-primary" disabled>Export All</button>
       </div>
     </header>
 
@@ -46,12 +43,15 @@
             <span class="view-pill-dot view-pill-mapped"></span>
             Mapped
           </button>
-          <button class="view-pill" data-view="raw" aria-pressed="false">
+          <button class="view-pill active" data-view="raw" aria-pressed="true">
             <span class="view-pill-dot view-pill-raw"></span>
             Raw
           </button>
         </div>
-        <input id="filter-input" type="text" placeholder="Filter files..." spellcheck="false">
+        <button id="btn-search-all" class="btn btn-sm btn-icon-text" title="Search all files (Ctrl+Shift+F)">
+          Search all
+        </button>
+        <input id="filter-input" type="text" placeholder="Filter files..." spellcheck="false" />
         <select id="format-select">
           <option value="zip">ZIP</option>
           <option value="tar">TAR</option>
@@ -62,21 +62,21 @@
               d="M-1.4-11q-.7.3-.7 1 .3 2-1 2.6c-1.3.6-1.7-.1-2.4-1q-.5-.7-1.2-.3l-2 2q-.4.7.2 1.2Q-7-4.4-7.4-3.1c-.4 1.3-1.4 1.2-2.5 1q-.9 0-1 .7v2.8q.1.7 1 .7 1.8-.2 2.5 1c.7 1.2-.1 1.7-1 2.4q-.7.5-.3 1.2l2 2q.7.4 1.2-.2Q-4.4 7-3.1 7.4c1.3.4 1.2 1.4 1 2.5q0 .9.7 1h2.8q.7-.1.7-1-.2-1.8 1-2.5c1.2-.7 1.7.1 2.4 1q.5.7 1.2.3l2-2q.4-.7-.2-1.2Q7 4.4 7.4 3.1c.4-1.3 1.4-1.2 2.5-1q.9 0 1-.7v-2.8q-.1-.7-1-.7-1.8.2-2.5-1c-.7-1.2.1-1.7 1-2.4q.8-.5.3-1.2l-2-2q-.7-.4-1.2.2Q4.4-7 3.1-7.4c-1.3-.4-1.2-1.4-1-2.5q0-.9-.7-1zM4 0a4 4 0 1 1-8 0 4 4 0 0 1 8 0">
             </path>
           </svg>
-
         </button>
       </div>
-      <div id="settings-popover" style="display:none">
+      <div id="settings-popover" style="display: none">
         <div class="settings-title">Settings</div>
         <label class="settings-row">
-          <input type="checkbox" id="opt-pretty-default">
+          <input type="checkbox" id="opt-pretty-default" />
           <span>Pretty-format previews by default</span>
         </label>
         <label class="settings-row">
-          <input type="checkbox" id="opt-pretty-export">
+          <input type="checkbox" id="opt-pretty-export" />
           <span>Pretty-format files on export</span>
         </label>
-        <div class="settings-hint">On export, files that fail to format fall back to the original with a note at the
-          top.</div>
+        <div class="settings-hint">
+          On export, files that fail to format fall back to the original with a note at the top.
+        </div>
       </div>
     </div>
 
@@ -99,10 +99,12 @@
               </svg>
             </div>
             <p class="empty-title">No sources captured yet</p>
-            <p class="empty-sub">Reload the inspected page if scripts loaded before DevTools opened. Source maps are
-              detected automatically.</p>
+            <p class="empty-sub">
+              Reload the inspected page if scripts loaded before DevTools opened. Source maps are
+              detected automatically.
+            </p>
           </div>
-          <div id="tree-root" style="display:none"></div>
+          <div id="tree-root" style="display: none"></div>
         </div>
       </div>
 
@@ -110,7 +112,13 @@
       <div id="preview-panel">
         <div id="preview-header">
           <div id="preview-tabs"></div>
-          <div id="preview-actions" style="display:none">
+          <div id="preview-actions" style="display: none">
+            <button id="btn-find-file" class="btn btn-sm btn-icon-text" title="Search current file (Ctrl+F)">
+              Find
+            </button>
+            <button id="btn-references" class="btn btn-sm btn-icon-text" title="List references for symbol (Shift+F12)">
+              References
+            </button>
             <button id="btn-wrap" class="btn btn-sm btn-icon-text" title="Toggle word wrap">
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                 <path d="M1 2h9M1 5h6a2 2 0 0 1 0 4H5" stroke="currentColor" stroke-width="1.1"
@@ -132,6 +140,27 @@
           </div>
         </div>
         <div id="preview-content">
+          <aside id="workspace-search" aria-label="Search all files" hidden>
+            <div class="workspace-search-header">
+              <strong>Search all files</strong>
+              <button id="btn-close-search" class="btn btn-icon" title="Close search">×</button>
+            </div>
+            <form id="workspace-search-form">
+              <input id="workspace-search-input" type="search" placeholder="Search website files…" spellcheck="false" />
+              <button id="btn-search-case" class="search-option" type="button" title="Match case"
+                aria-label="Match case" aria-pressed="false">
+                Aa
+              </button>
+              <button id="btn-search-regex" class="search-option" type="button" title="Use regular expression"
+                aria-label="Use regular expression" aria-pressed="false">
+                .*
+              </button>
+            </form>
+            <div id="workspace-search-summary">
+              Enter text to search Authored, Deployed, and Requests.
+            </div>
+            <div id="workspace-search-results"></div>
+          </aside>
           <div id="preview-placeholder">
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
               <path d="M8 4h10l6 6v18H8V4z" stroke="#2a3a4a" stroke-width="1.2" fill="none" />
@@ -140,16 +169,13 @@
             </svg>
             <span>No file selected</span>
           </div>
-          <div id="preview-pre" style="display:none">
-            <div id="preview-gutter" aria-hidden="true"></div>
-            <pre id="preview-code"><code id="preview-code-content" spellcheck="false"></code></pre>
-          </div>
-          <div id="preview-image-wrap" style="display:none">
-            <img id="preview-image" alt="">
+          <div id="editor-container" style="display: none" aria-label="Source editor"></div>
+          <div id="preview-image-wrap" style="display: none">
+            <img id="preview-image" alt="" />
             <div id="preview-image-meta"></div>
           </div>
         </div>
-        <div id="preview-footer" style="display:none">
+        <div id="preview-footer" style="display: none">
           <div id="preview-footer-left">
             <button id="btn-pretty" class="footer-pretty-btn" title="Pretty-format this file"
               aria-label="Pretty-format this file">
@@ -175,15 +201,32 @@
     </div>
 
     <!-- Context menu -->
-    <div id="context-menu" style="display:none">
+    <div id="context-menu" style="display: none">
       <div class="ctx-item" id="ctx-export-file">Export file</div>
       <div class="ctx-item" id="ctx-export-dir">Export directory</div>
       <div class="ctx-separator"></div>
       <div class="ctx-item" id="ctx-export-all">Export all sources</div>
     </div>
 
+    <div id="quick-picker" role="dialog" aria-modal="true" hidden>
+      <div class="quick-picker-box">
+        <div class="quick-picker-title-row">
+          <strong id="quick-picker-title">Open file</strong>
+          <span id="quick-picker-hint"></span>
+        </div>
+        <input id="quick-picker-input" type="search" placeholder="Type a file name…" autocomplete="off"
+          spellcheck="false" />
+        <div id="quick-picker-results" role="listbox"></div>
+        <div class="quick-picker-footer">
+          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+          <span><kbd>Enter</kbd> select</span>
+          <span><kbd>Esc</kbd> close</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Progress overlay -->
-    <div id="progress-overlay" style="display:none">
+    <div id="progress-overlay" style="display: none">
       <div id="progress-box">
         <div id="progress-title">Building archive...</div>
         <div id="progress-bar-wrap">
@@ -195,11 +238,10 @@
   </div>
 
   <script src="../vendor/jszip.min.js"></script>
-  <script src="../vendor/prism-bundle.js"></script>
   <script src="../vendor/beautifier.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.15.4/beautify.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.15.4/beautify-css.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.15.4/beautify-html.min.js"></script>
+  <script src="../vendor/monaco/worker-map.js"></script>
+  <script src="../vendor/monaco/vs/loader.js"></script>
+  <script src="editor.js"></script>
   <script src="panel.js"></script>
 </body>
 

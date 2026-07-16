@@ -1,6 +1,9 @@
 node_modules
 vendor
+src/vendor
 dist
 out
+old
+.temp
 package-lock.json
 *.min.js
