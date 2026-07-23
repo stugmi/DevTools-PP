@@ -7,3 +7,4 @@ old
 .temp
 package-lock.json
 *.min.js
+.claude

@@ -57,6 +57,7 @@ module.exports = [
       "out/**",
       "old/**",
       ".temp/**",
+      ".claude/**",
       "eslint.config.js",
     ],
   },
