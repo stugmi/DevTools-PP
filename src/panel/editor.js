@@ -8,6 +8,24 @@ window.SourceEditor = (() => {
   const modelMeta = new Map();
   const disposables = [];
 
+  const DEFAULT_APPEARANCE = {
+    fontFamily: "Cascadia Code, Consolas, monospace",
+    fontSize: 12,
+    theme: "source-exporter",
+    smoothScrolling: true,
+  };
+
+  // Themes selectable by the user. "source-exporter*" entries are custom
+  // themes defined below; the rest are Monaco's built-in themes.
+  const THEME_IDS = new Set([
+    "source-exporter",
+    "source-exporter-light",
+    "vs-dark",
+    "vs",
+    "hc-black",
+    "hc-light",
+  ]);
+
   const ready = new Promise((resolve, reject) => {
     if (typeof window.require !== "function") {
       reject(new Error("Monaco loader unavailable"));
@@ -47,20 +65,41 @@ window.SourceEditor = (() => {
             "editorWidget.border": "#33404d",
           },
         });
+        monaco.editor.defineTheme("source-exporter-light", {
+          base: "vs",
+          inherit: true,
+          rules: [],
+          colors: {
+            "editor.background": "#ffffff",
+            "editor.foreground": "#1f2328",
+            "editorLineNumber.foreground": "#8c959f",
+            "editorLineNumber.activeForeground": "#1a73a8",
+            "editor.selectionBackground": "#c8dffa",
+            "editorWidget.background": "#f6f8fa",
+            "editorWidget.border": "#d0d7de",
+          },
+        });
         editor = monaco.editor.create(document.getElementById("editor-container"), {
-          theme: "source-exporter",
+          theme: DEFAULT_APPEARANCE.theme,
           automaticLayout: true,
-          fontFamily: "Cascadia Code, Consolas, monospace",
-          fontSize: 12,
+          fontFamily: DEFAULT_APPEARANCE.fontFamily,
+          fontSize: DEFAULT_APPEARANCE.fontSize,
           lineHeight: 19,
           minimap: { enabled: true },
           wordWrap: "off",
           scrollBeyondLastLine: false,
-          smoothScrolling: true,
+          smoothScrolling: DEFAULT_APPEARANCE.smoothScrolling,
           renderWhitespace: "selection",
           bracketPairColorization: { enabled: true },
           guides: { bracketPairs: true, indentation: true },
           fixedOverflowWidgets: true,
+          // Large single-line JSON/JS payloads (e.g. hydration data inside a
+          // <script> tag) are common in captured sources. Monaco's defaults
+          // (10k render / 20k tokenize) silently drop syntax highlighting
+          // past those lengths for *any* language, so raise them well beyond
+          // typical embedded JSON blobs.
+          stopRenderingLineAfter: -1,
+          maxTokenizationLineLength: 200_000,
         });
         editor.onDidChangeModelContent(() => {
           if (!suppressChanges && current && workspace) {
@@ -150,6 +189,20 @@ window.SourceEditor = (() => {
   async function toggleWrap(enabled) {
     await ready;
     editor.updateOptions({ wordWrap: enabled ? "on" : "off", minimap: { enabled: !enabled } });
+  }
+
+  async function applyPreferences(preferences = {}) {
+    await ready;
+    const options = {};
+    if (preferences.fontFamily) options.fontFamily = preferences.fontFamily;
+    if (preferences.fontSize) options.fontSize = Number(preferences.fontSize);
+    if (typeof preferences.smoothScrolling === "boolean") {
+      options.smoothScrolling = preferences.smoothScrolling;
+    }
+    if (Object.keys(options).length) editor.updateOptions(options);
+    if (preferences.theme && THEME_IDS.has(preferences.theme)) {
+      window.monaco.editor.setTheme(preferences.theme);
+    }
   }
 
   function escapeRegExp(value) {
@@ -341,5 +394,6 @@ window.SourceEditor = (() => {
     findReferences,
     goToDefinition,
     toggleWrap,
+    applyPreferences,
   };
 })();

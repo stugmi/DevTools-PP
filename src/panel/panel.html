@@ -77,6 +77,31 @@
         <div class="settings-hint">
           On export, files that fail to format fall back to the original with a note at the top.
         </div>
+        <div class="settings-title settings-title-spaced">Editor</div>
+        <label class="settings-row settings-row-field">
+          <span>Color theme</span>
+          <select id="opt-editor-theme" class="settings-select">
+            <option value="source-exporter">Dark (default)</option>
+            <option value="source-exporter-light">Light</option>
+            <option value="vs-dark">VS Dark</option>
+            <option value="vs">VS Light</option>
+            <option value="hc-black">High contrast dark</option>
+            <option value="hc-light">High contrast light</option>
+          </select>
+        </label>
+        <label class="settings-row settings-row-field">
+          <span>Font family</span>
+          <input type="text" id="opt-editor-font-family" class="settings-input" spellcheck="false" />
+        </label>
+        <label class="settings-row settings-row-field">
+          <span>Font size</span>
+          <input type="number" id="opt-editor-font-size" class="settings-input settings-input-narrow" min="8"
+            max="32" step="1" />
+        </label>
+        <label class="settings-row">
+          <input type="checkbox" id="opt-disable-smooth-scroll" />
+          <span>Disable smooth scrolling</span>
+        </label>
       </div>
     </div>
 

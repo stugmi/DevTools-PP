@@ -472,6 +472,40 @@ body {
   margin-top: 4px;
 }
 
+.settings-title-spaced {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-row-field {
+  justify-content: space-between;
+  cursor: default;
+}
+
+.settings-select,
+.settings-input {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 2px 4px;
+  outline: none;
+}
+
+.settings-select {
+  cursor: pointer;
+}
+
+.settings-input {
+  width: 150px;
+}
+
+.settings-input-narrow {
+  width: 56px;
+}
+
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex;

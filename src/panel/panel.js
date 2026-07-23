@@ -6,16 +6,40 @@ const network = chrome.devtools.network;
 const PREF_KEYS = {
   prettyDefault: "se.prettyDefault",
   prettyOnExport: "se.prettyOnExport",
+  editorTheme: "se.editorTheme",
+  editorFontFamily: "se.editorFontFamily",
+  editorFontSize: "se.editorFontSize",
+  editorDisableSmoothScroll: "se.editorDisableSmoothScroll",
 };
+
+const EDITOR_DEFAULTS = {
+  theme: "source-exporter",
+  fontFamily: "Cascadia Code, Consolas, monospace",
+  fontSize: 12,
+};
+
+const RESOURCE_URL_BLACKLIST = [
+  // Temp fix for annoying devtools manifest v3 warning/error.
+  "chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj",
+];
 
 const prefs = {
   prettyDefault: localStorage.getItem(PREF_KEYS.prettyDefault) === "1",
   prettyOnExport: localStorage.getItem(PREF_KEYS.prettyOnExport) === "1",
+  editorTheme: localStorage.getItem(PREF_KEYS.editorTheme) || EDITOR_DEFAULTS.theme,
+  editorFontFamily: localStorage.getItem(PREF_KEYS.editorFontFamily) || EDITOR_DEFAULTS.fontFamily,
+  editorFontSize:
+    Number(localStorage.getItem(PREF_KEYS.editorFontSize)) || EDITOR_DEFAULTS.fontSize,
+  editorDisableSmoothScroll: localStorage.getItem(PREF_KEYS.editorDisableSmoothScroll) === "1",
 };
 
 function savePref(key, value) {
   try {
-    localStorage.setItem(PREF_KEYS[key], value ? "1" : "0");
+    if (typeof value === "boolean") {
+      localStorage.setItem(PREF_KEYS[key], value ? "1" : "0");
+    } else {
+      localStorage.setItem(PREF_KEYS[key], String(value));
+    }
   } catch {
     // ignore storage failures
   }
@@ -73,6 +97,10 @@ const el = {
   settingsPopover: $("settings-popover"),
   optPrettyDefault: $("opt-pretty-default"),
   optPrettyExport: $("opt-pretty-export"),
+  optEditorTheme: $("opt-editor-theme"),
+  optEditorFontFamily: $("opt-editor-font-family"),
+  optEditorFontSize: $("opt-editor-font-size"),
+  optDisableSmoothScroll: $("opt-disable-smooth-scroll"),
   previewActions: $("preview-actions"),
   emptyState: $("empty-state"),
   treeRoot: $("tree-root"),
@@ -144,8 +172,17 @@ function tabId(path, section) {
 
 // ── Resource discovery via DevTools API (no debugger attach) ────────────────
 
+function isBlacklistedResourceURL(url) {
+  if (!url) return false;
+  return RESOURCE_URL_BLACKLIST.some((prefix) => url === prefix || url.startsWith(prefix + "/"));
+}
+
 function getResources() {
-  return new Promise((resolve) => insp.getResources(resolve));
+  return new Promise((resolve) =>
+    insp.getResources((resources) => {
+      resolve(resources.filter((resource) => !isBlacklistedResourceURL(resource?.url)));
+    })
+  );
 }
 
 function getHAR() {
@@ -208,6 +245,7 @@ function decodeDataMap(url) {
 }
 
 async function loadMap(mapURL, resourceMap) {
+  if (isBlacklistedResourceURL(mapURL)) return null;
   if (mapURL.startsWith("data:")) return decodeDataMap(mapURL);
 
   const res = resourceMap.get(mapURL);
@@ -412,6 +450,7 @@ function rebuildRawTree(resources) {
 
 async function processScript(resource, resourceMap) {
   if (!resource || !resource.url) return 0;
+  if (isBlacklistedResourceURL(resource.url)) return 0;
   if (state.scannedScripts.has(resource.url)) return 0;
   state.scannedScripts.add(resource.url);
 
@@ -527,7 +566,7 @@ network.onNavigated.addListener(() => {
 network.onRequestFinished.addListener((request) => {
   const url = request.request && request.request.url;
   const contentType = contentTypeFromHAR(request);
-  if (!url || !contentType) return;
+  if (!url || !contentType || isBlacklistedResourceURL(url)) return;
   state.contentTypesByURL.set(url, contentType);
   const location = state.rawByURL.get(url);
   if (location) {
@@ -1399,6 +1438,7 @@ function renderImage(entry, path) {
 }
 
 async function loadRawByURL(url, resource) {
+  if (isBlacklistedResourceURL(url)) return null;
   if (state.rawCache.has(url)) return state.rawCache.get(url);
 
   let r = resource;
@@ -2348,6 +2388,52 @@ el.optPrettyExport.addEventListener("change", () => {
   prefs.prettyOnExport = el.optPrettyExport.checked;
   savePref("prettyOnExport", prefs.prettyOnExport);
 });
+
+el.optEditorTheme.value = prefs.editorTheme;
+el.optEditorFontFamily.value = prefs.editorFontFamily;
+el.optEditorFontSize.value = prefs.editorFontSize;
+el.optDisableSmoothScroll.checked = prefs.editorDisableSmoothScroll;
+
+function applyEditorPreferences() {
+  SourceEditor.applyPreferences({
+    theme: prefs.editorTheme,
+    fontFamily: prefs.editorFontFamily,
+    fontSize: prefs.editorFontSize,
+    smoothScrolling: !prefs.editorDisableSmoothScroll,
+  }).catch(() => {});
+}
+
+el.optEditorTheme.addEventListener("change", () => {
+  prefs.editorTheme = el.optEditorTheme.value;
+  savePref("editorTheme", prefs.editorTheme);
+  applyEditorPreferences();
+});
+
+el.optEditorFontFamily.addEventListener("change", () => {
+  prefs.editorFontFamily = el.optEditorFontFamily.value.trim() || EDITOR_DEFAULTS.fontFamily;
+  el.optEditorFontFamily.value = prefs.editorFontFamily;
+  savePref("editorFontFamily", prefs.editorFontFamily);
+  applyEditorPreferences();
+});
+
+el.optEditorFontSize.addEventListener("change", () => {
+  const size = Math.min(
+    32,
+    Math.max(8, Number(el.optEditorFontSize.value) || EDITOR_DEFAULTS.fontSize)
+  );
+  prefs.editorFontSize = size;
+  el.optEditorFontSize.value = size;
+  savePref("editorFontSize", prefs.editorFontSize);
+  applyEditorPreferences();
+});
+
+el.optDisableSmoothScroll.addEventListener("change", () => {
+  prefs.editorDisableSmoothScroll = el.optDisableSmoothScroll.checked;
+  savePref("editorDisableSmoothScroll", prefs.editorDisableSmoothScroll);
+  applyEditorPreferences();
+});
+
+applyEditorPreferences();
 
 el.btnSettings.addEventListener("click", (e) => {
   e.stopPropagation();

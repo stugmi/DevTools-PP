@@ -3,7 +3,9 @@
   "name": "Source Exporter",
   "version": "1.2.0",
   "description": "Export reconstructed source files from DevTools source maps as ZIP or TAR archives",
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "devtools_page": "devtools/devtools.html",
   "action": {
     "default_popup": "panel/popup.html",
