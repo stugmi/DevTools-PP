@@ -1317,7 +1317,7 @@ function resetPreview() {
   state.lastPreviewText = "";
   state.lastPreviewOriginal = "";
   el.editorContainer.style.display = "none";
-  SourceEditor.hide().catch(() => {});
+  SourceEditor.hide().catch(() => { });
   el.previewImageWrap.style.display = "none";
   el.previewFooter.style.display = "none";
   el.previewActions.style.display = "none";
@@ -1378,7 +1378,7 @@ async function selectFile(path, section, position) {
     el.previewActions.style.display = "flex";
     el.previewFooter.style.display = "flex";
     el.editorContainer.style.display = "none";
-    SourceEditor.hide().catch(() => {});
+    SourceEditor.hide().catch(() => { });
     el.previewPlaceholder.style.display = "flex";
     const failed = entry.fetchStatus === "missing";
     const headline = failed
@@ -1406,7 +1406,7 @@ function renderImage(entry, path) {
   el.previewActions.style.display = "flex";
   el.previewPlaceholder.style.display = "none";
   el.editorContainer.style.display = "none";
-  SourceEditor.hide().catch(() => {});
+  SourceEditor.hide().catch(() => { });
   el.previewImageWrap.style.display = "flex";
 
   const url = entry.sourceURL || entry.scriptURL || "";
@@ -2366,7 +2366,7 @@ el.btnCopy.addEventListener("click", async () => {
 let wrapEnabled = false;
 el.btnWrap.addEventListener("click", () => {
   wrapEnabled = !wrapEnabled;
-  SourceEditor.toggleWrap(wrapEnabled).catch(() => {});
+  SourceEditor.toggleWrap(wrapEnabled).catch(() => { });
   el.btnWrap.classList.toggle("active", wrapEnabled);
 });
 
@@ -2400,7 +2400,7 @@ function applyEditorPreferences() {
     fontFamily: prefs.editorFontFamily,
     fontSize: prefs.editorFontSize,
     smoothScrolling: !prefs.editorDisableSmoothScroll,
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 el.optEditorTheme.addEventListener("change", () => {
