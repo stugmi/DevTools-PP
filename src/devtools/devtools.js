@@ -1,7 +1,7 @@
 chrome.devtools.panels.create(
   "Source Exporter",
-  "/icons/icon16.png",
-  "/panel/panel.html",
+  "icons/icon16.png",
+  "panel/panel.html",
   (panel) => {
     let activePanelWindow = null;
     panel.onShown.addListener((shownWindow) => {

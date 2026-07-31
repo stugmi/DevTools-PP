@@ -286,6 +286,34 @@ body {
   font-weight: 400;
 }
 
+.tree-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-section-export {
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  background: transparent;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tree-section-export:hover {
+  color: var(--text-primary);
+}
+
+.tree-section-export:disabled {
+  color: var(--text-dim);
+  cursor: default;
+  opacity: 0.6;
+}
+
 .tree-section-empty {
   padding: 6px 16px;
   font-size: 10.5px;
@@ -523,6 +551,14 @@ body {
 
 .settings-input {
   width: 150px;
+}
+
+.settings-location-input {
+  width: 100%;
+}
+
+.settings-filter-error {
+  color: var(--red);
 }
 
 .settings-input-narrow {

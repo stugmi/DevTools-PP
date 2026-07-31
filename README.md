@@ -33,12 +33,17 @@ The mode stays enabled until toggled off, letting later routes and lazy requests
 collection. Turning it off keeps the current collection visible; the next navigation returns to the
 normal single-page reset behavior. The refresh button always starts a fresh collection.
 
+Use **Settings → Location filter** to show only one exact domain, a domain and its subdomains, or
+locations matching a regular expression. The filter affects the tree, counts, and section exports;
+**Export All** ignores the location filter and keeps its existing Mapped/Raw toggle behavior.
+
 ### Exporting
 
 | Action               | How                                                                         |
 | -------------------- | --------------------------------------------------------------------------- |
 | Export a single file | Right-click a file → **Export file**                                        |
 | Export a directory   | Right-click a folder → **Export directory**                                 |
+| Export one section   | Click **Export** in the Authored, Deployed, or Requests section header      |
 | Export everything    | Click **Export All** in the header, or right-click → **Export all sources** |
 | Preview a file       | Left-click it in the tree                                                   |
 

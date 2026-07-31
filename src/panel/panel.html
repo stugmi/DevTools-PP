@@ -79,6 +79,25 @@
         <div class="settings-hint">
           On export, files that fail to format fall back to the original with a note at the top.
         </div>
+        <div class="settings-title settings-title-spaced">Location filter</div>
+        <label class="settings-row settings-row-field">
+          <span>Match</span>
+          <select id="location-filter-mode" class="settings-select">
+            <option value="all">All locations</option>
+            <option value="exact">Exact domain</option>
+            <option value="subdomains">Domain + subdomains</option>
+            <option value="regex">URL/location regex</option>
+          </select>
+        </label>
+        <input
+          type="text"
+          id="location-filter-input"
+          class="settings-input settings-location-input"
+          placeholder="No location filter"
+          spellcheck="false"
+          disabled
+        />
+        <div id="location-filter-status" class="settings-hint">All locations shown</div>
         <div class="settings-title settings-title-spaced">Editor</div>
         <label class="settings-row settings-row-field">
           <span>Color theme</span>

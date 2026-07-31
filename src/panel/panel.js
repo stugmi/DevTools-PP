@@ -63,6 +63,12 @@ const state = {
   collectAcrossNavigations: prefs.collectAcrossNavigations,
   showMapped: true,
   showRaw: true,
+  locationFilter: {
+    mode: "all",
+    value: "",
+    regex: null,
+    error: "",
+  },
   selectedPath: null,
   selectedSection: null,
   contextTarget: null,
@@ -104,6 +110,9 @@ const el = {
   btnCloseSearch: $("btn-close-search"),
   btnSettings: $("btn-settings"),
   settingsPopover: $("settings-popover"),
+  locationFilterMode: $("location-filter-mode"),
+  locationFilterInput: $("location-filter-input"),
+  locationFilterStatus: $("location-filter-status"),
   optPrettyDefault: $("opt-pretty-default"),
   optPrettyExport: $("opt-pretty-export"),
   optEditorTheme: $("opt-editor-theme"),
@@ -168,6 +177,98 @@ function modelFor(section) {
   return state.treeModel;
 }
 
+function entryLocation(entry) {
+  return [entry?.scriptURL, entry?.sourceURL].filter(Boolean).join("\n");
+}
+
+function entryHost(entry) {
+  for (const value of [entry?.scriptURL, entry?.sourceURL]) {
+    if (!value) continue;
+    try {
+      const hostname = new URL(value).hostname.toLowerCase();
+      if (hostname) return hostname.replace(/\.$/, "");
+    } catch {
+      // Try the next URL field.
+    }
+  }
+  return "";
+}
+
+function normalizeDomain(value) {
+  const candidate = value.trim().toLowerCase();
+  if (!candidate) return "";
+  try {
+    const url = new URL(candidate.includes("://") ? candidate : `https://${candidate}`);
+    return url.hostname.toLowerCase().replace(/^\.+|\.+$/g, "");
+  } catch {
+    return candidate
+      .replace(/^[a-z][a-z\d+.-]*:\/\//, "")
+      .split("/")[0]
+      .replace(/^\.+|\.+$/g, "");
+  }
+}
+
+function locationFilterMatches(entry) {
+  const { mode, value, regex } = state.locationFilter;
+  const filter = value.trim();
+  if (mode === "all" || !filter) return true;
+
+  if (mode === "regex") return Boolean(regex && regex.test(entryLocation(entry)));
+
+  const domain = normalizeDomain(filter);
+  const host = entryHost(entry);
+  if (!domain || !host) return false;
+  if (mode === "subdomains") return host === domain || host.endsWith(`.${domain}`);
+  return host === domain;
+}
+
+function filteredTreeFor(section) {
+  const tree = treeFor(section);
+  if (state.locationFilter.mode === "all" || !state.locationFilter.value.trim()) return tree;
+  return Object.fromEntries(
+    Object.entries(tree).filter(([, entry]) => locationFilterMatches(entry))
+  );
+}
+
+function updateLocationFilterUI() {
+  const mode = state.locationFilter.mode;
+  const placeholders = {
+    all: "No location filter",
+    exact: "example.com",
+    subdomains: "example.com",
+    regex: "github\\.com|cdn\\.",
+  };
+  el.locationFilterInput.disabled = mode === "all";
+  el.locationFilterInput.placeholder = placeholders[mode];
+  el.locationFilterStatus.textContent = state.locationFilter.error
+    ? state.locationFilter.error
+    : mode === "all" || !state.locationFilter.value.trim()
+      ? "All locations shown"
+      : "Location filter active";
+  el.locationFilterStatus.classList.toggle(
+    "settings-filter-error",
+    Boolean(state.locationFilter.error)
+  );
+}
+
+function updateLocationFilter() {
+  const mode = el.locationFilterMode.value;
+  const value = el.locationFilterInput.value;
+  state.locationFilter.mode = mode;
+  state.locationFilter.value = value;
+  state.locationFilter.regex = null;
+  state.locationFilter.error = "";
+  if (mode === "regex" && value.trim()) {
+    try {
+      state.locationFilter.regex = new RegExp(value, "i");
+    } catch (error) {
+      state.locationFilter.error = `Invalid regex: ${error.message}`;
+    }
+  }
+  updateLocationFilterUI();
+  rebuild();
+}
+
 function enabledSections() {
   const out = [];
   if (state.showMapped) out.push("mapped");
@@ -188,6 +289,7 @@ function tabId(path, section) {
 // the browser's shared connection pool, stalling unrelated tabs. Every
 // network/CDP round trip in this file must go through a hard timeout.
 const NETWORK_CALL_TIMEOUT_MS = 8000;
+let panelVisible = true;
 
 function withTimeout(promise, ms, fallback) {
   return new Promise((resolve) => {
@@ -243,15 +345,26 @@ function isBlacklistedResourceURL(url) {
 }
 
 function getResources() {
-  return new Promise((resolve) =>
+  const pending = new Promise((resolve) =>
     insp.getResources((resources) => {
       resolve(resources.filter((resource) => !isBlacklistedResourceURL(resource?.url)));
     })
   );
+  return withTimeout(pending, NETWORK_CALL_TIMEOUT_MS, []);
 }
 
 function getHAR() {
-  return new Promise((resolve) => network.getHAR(resolve));
+  const pending = new Promise((resolve) => network.getHAR(resolve));
+  return withTimeout(pending, NETWORK_CALL_TIMEOUT_MS, null);
+}
+
+function isFetchableURL(url) {
+  try {
+    const protocol = new URL(url).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function getResourceContent(resource) {
@@ -325,6 +438,8 @@ async function loadMap(mapURL, resourceMap) {
       }
     }
   }
+
+  if (!isFetchableURL(mapURL)) return null;
 
   try {
     const r = await fetchWithTimeout(mapURL, NETWORK_CALL_TIMEOUT_MS);
@@ -695,22 +810,24 @@ function migrateRawTabToRequest(url, requestPath) {
 }
 
 async function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) {
+  if (!panelVisible) return false;
   const request = entry?.request;
   const url = request?.url;
   if (!url || isBlacklistedResourceURL(url) || !isApiResource(entry)) return false;
 
   const captureKey = requestKey || nextFinishedRequestKey(entry);
   if (state.capturedRequestKeys.has(captureKey)) return false;
-  state.capturedRequestKeys.add(captureKey);
-
-  const sequence = ++state.requestCaptureSequence;
-  const path = requestPathFor(url, entry._resourceType || "fetch");
   const responseContentType = contentTypeFromHAR(entry);
   const requestContentType = requestContentTypeFromHAR(entry);
-  if (responseContentType) state.contentTypesByURL.set(url, responseContentType);
 
   const { content: responseText, encoding: responseEncoding } =
     await getFinishedRequestContent(entry);
+  if (!panelVisible) return false;
+
+  state.capturedRequestKeys.add(captureKey);
+  const sequence = ++state.requestCaptureSequence;
+  const path = requestPathFor(url, entry._resourceType || "fetch");
+  if (responseContentType) state.contentTypesByURL.set(url, responseContentType);
 
   const requestBody = structuredBody(
     request.postData?.text,
@@ -787,7 +904,7 @@ async function processScript(resource, resourceMap) {
 }
 
 async function scanAll({ preserveExisting = state.collectAcrossNavigations } = {}) {
-  if (state.scanning) return;
+  if (!panelVisible || state.scanning) return;
   state.scanning = true;
   setStatus(
     "connecting",
@@ -795,8 +912,10 @@ async function scanAll({ preserveExisting = state.collectAcrossNavigations } = {
   );
   try {
     const har = await getHAR();
+    if (!panelVisible) return;
     updateContentTypesFromHAR(har);
     const resources = await getResources();
+    if (!panelVisible) return;
     const resourceMap = new Map(resources.map((r) => [r.url, r]));
     const scripts = resources.filter((r) => r.type === "script");
 
@@ -804,30 +923,34 @@ async function scanAll({ preserveExisting = state.collectAcrossNavigations } = {
     await captureRequestsFromHAR(har?.entries, true);
 
     for (const s of scripts) {
+      if (!panelVisible) return;
       await processScript(s, resourceMap);
     }
-    rebuild();
+    if (panelVisible) rebuild();
   } finally {
     state.scanning = false;
   }
 }
 
 function rebuild() {
-  state.treeModel = buildTreeModel(state.sourceTree);
-  state.rawTreeModel = buildTreeModel(state.rawTree);
-  state.requestTreeModel = buildTreeModel(state.requestTree);
+  state.treeModel = buildTreeModel(filteredTreeFor("mapped"));
+  state.rawTreeModel = buildTreeModel(filteredTreeFor("raw"));
+  state.requestTreeModel = buildTreeModel(filteredTreeFor("requests"));
 
-  const mappedCount = Object.keys(state.sourceTree).length;
-  const rawCount = Object.keys(state.rawTree).length;
-  const requestCount = Object.keys(state.requestTree).length;
+  const mappedCount = getItemsInSection("mapped").length;
+  const rawCount = getItemsInSection("raw").length;
+  const requestCount = getItemsInSection("requests").length;
   const visibleCount =
     (state.showMapped ? mappedCount : 0) + (state.showRaw ? rawCount + requestCount : 0);
 
   el.fileCount.textContent = visibleCount || "—";
 
   if (visibleCount === 0) {
-    const msg =
-      state.showMapped && !state.showRaw
+    const hasLocationFilter =
+      state.locationFilter.mode !== "all" && state.locationFilter.value.trim();
+    const msg = hasLocationFilter
+      ? "No locations match the current filter"
+      : state.showMapped && !state.showRaw
         ? `${state.collectAcrossNavigations ? "Collecting" : "Watching"} — no source maps detected yet`
         : !state.showMapped && state.showRaw
           ? `${state.collectAcrossNavigations ? "Collecting" : "Watching"} — no resources or requests captured yet`
@@ -889,18 +1012,22 @@ insp.onResourceAdded.addListener((resource) => {
     let addedMapped = 0;
     if (resource.type === "script") {
       const resources = await getResources();
+      if (!panelVisible) return;
       const resourceMap = new Map(resources.map((r) => [r.url, r]));
       addedMapped = await processScript(resource, resourceMap);
     }
-    if (addedRaw || addedMapped > 0) rebuild();
+    if (panelVisible && (addedRaw || addedMapped > 0)) rebuild();
   }, 250);
 });
 
 network.onNavigated.addListener(() => {
+  if (!panelVisible) return;
   state.scannedScripts.clear();
   state.rawCache = new Map();
   if (!state.collectAcrossNavigations) resetCapture();
-  setTimeout(() => scanAll({ preserveExisting: state.collectAcrossNavigations }), 400);
+  setTimeout(() => {
+    if (panelVisible) scanAll({ preserveExisting: state.collectAcrossNavigations });
+  }, 400);
 });
 
 network.onRequestFinished.addListener((request) => {
@@ -973,8 +1100,7 @@ function renderTree() {
   for (const section of sections) {
     const model = modelFor(section);
     if (!model) continue;
-    const tree = treeFor(section);
-    const count = Object.keys(tree).length;
+    const count = getItemsInSection(section).length;
     if (showHeaders) {
       renderSectionHeader(section, count);
     }
@@ -1006,8 +1132,17 @@ function renderSectionHeader(section, count) {
         : "Deployed (raw)";
   header.innerHTML = `
     <span class="tree-section-label">${label}</span>
-    <span class="tree-section-count">${count}</span>
+    <span class="tree-section-actions">
+      <span class="tree-section-count">${count}</span>
+      <button class="tree-section-export" type="button" ${count ? "" : "disabled"}>
+        Export
+      </button>
+    </span>
   `;
+  header.querySelector(".tree-section-export").addEventListener("click", (event) => {
+    event.stopPropagation();
+    exportItems(getItemsInSection(section), archiveNameForSection(section));
+  });
   el.treeRoot.appendChild(header);
 }
 
@@ -1770,11 +1905,13 @@ async function loadRawByURL(url, resource) {
     content = decodeResource(await getResourceContent(r));
   }
   if (!content) {
-    try {
-      const resp = await fetchWithTimeout(url, NETWORK_CALL_TIMEOUT_MS);
-      if (resp.ok) content = await resp.text();
-    } catch {
-      content = null;
+    if (isFetchableURL(url)) {
+      try {
+        const resp = await fetchWithTimeout(url, NETWORK_CALL_TIMEOUT_MS);
+        if (resp.ok) content = await resp.text();
+      } catch {
+        content = null;
+      }
     }
   }
   if (content != null) state.rawCache.set(url, content);
@@ -2074,19 +2211,29 @@ function triggerDownload(blob, filename) {
 // ── Item selectors ───────────────────────────────────────────────────────────
 
 function getAllItems() {
-  const out = [];
-  for (const section of enabledSections()) {
-    for (const path of Object.keys(treeFor(section))) {
-      out.push({ path, section });
-    }
-  }
-  return out;
+  return enabledSections().flatMap((section) => getAllItemsInSection(section));
+}
+
+function getItemsInSection(section) {
+  const tree = treeFor(section);
+  return Object.keys(tree)
+    .filter((path) => locationFilterMatches(tree[path]))
+    .map((path) => ({ path, section }));
+}
+
+function getAllItemsInSection(section) {
+  return Object.keys(treeFor(section)).map((path) => ({ path, section }));
+}
+
+function archiveNameForSection(section) {
+  const suffix = section === "mapped" ? "authored" : section === "raw" ? "deployed" : "requests";
+  return `${getDomainLabel()}-${suffix}`;
 }
 
 function getItemsUnderDir(section, dirPath) {
   const tree = treeFor(section);
   return Object.keys(tree)
-    .filter((p) => p === dirPath || p.startsWith(dirPath + "/"))
+    .filter((p) => (p === dirPath || p.startsWith(dirPath + "/")) && locationFilterMatches(tree[p]))
     .map((path) => ({ path, section }));
 }
 
@@ -2772,6 +2919,9 @@ document.addEventListener("click", () => {
   el.settingsPopover.style.display = "none";
 });
 
+el.locationFilterMode.addEventListener("change", updateLocationFilter);
+el.locationFilterInput.addEventListener("input", updateLocationFilter);
+
 el.filterInput.addEventListener("input", () => {
   state.filterText = el.filterInput.value.trim();
   if (state.treeModel || state.rawTreeModel || state.requestTreeModel) renderTree();
@@ -2836,10 +2986,18 @@ el.quickPicker.addEventListener("mousedown", (event) => {
 });
 
 // This document can only receive focused key events while its DevTools panel is active.
-// Visibility messages tighten the guard after Chrome has created the panel window.
-let panelVisible = true;
+// Visibility messages also pause resource/network work while another DevTools tab is shown.
 window.addEventListener("message", (event) => {
-  if (event.data?.type === "PANEL_SHOWN") panelVisible = true;
+  if (event.data?.type === "PANEL_SHOWN") {
+    const wasHidden = !panelVisible;
+    panelVisible = true;
+    if (wasHidden) {
+      state.scannedScripts.clear();
+      state.rawCache = new Map();
+      if (!state.collectAcrossNavigations) resetCapture();
+      setTimeout(() => scanAll({ preserveExisting: state.collectAcrossNavigations }), 0);
+    }
+  }
   if (event.data?.type === "PANEL_HIDDEN") {
     panelVisible = false;
     closeQuickPicker();
@@ -2911,5 +3069,6 @@ function formatBytes(n) {
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 updateCollectionModeUI();
+updateLocationFilterUI();
 renderTabs();
 scanAll();
