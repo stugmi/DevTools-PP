@@ -10,6 +10,7 @@ const PREF_KEYS = {
   editorFontFamily: "se.editorFontFamily",
   editorFontSize: "se.editorFontSize",
   editorDisableSmoothScroll: "se.editorDisableSmoothScroll",
+  collectAcrossNavigations: "se.collectAcrossNavigations",
 };
 
 const EDITOR_DEFAULTS = {
@@ -31,6 +32,7 @@ const prefs = {
   editorFontSize:
     Number(localStorage.getItem(PREF_KEYS.editorFontSize)) || EDITOR_DEFAULTS.fontSize,
   editorDisableSmoothScroll: localStorage.getItem(PREF_KEYS.editorDisableSmoothScroll) === "1",
+  collectAcrossNavigations: localStorage.getItem(PREF_KEYS.collectAcrossNavigations) === "1",
 };
 
 function savePref(key, value) {
@@ -53,7 +55,12 @@ const state = {
   requestTree: {},
   requestTreeModel: null,
   rawByURL: new Map(),
+  requestPathCounts: new Map(),
+  capturedRequestKeys: new Set(),
+  requestOccurrences: new Map(),
+  requestCaptureSequence: 0,
   contentTypesByURL: new Map(),
+  collectAcrossNavigations: prefs.collectAcrossNavigations,
   showMapped: true,
   showRaw: true,
   selectedPath: null,
@@ -84,6 +91,8 @@ const el = {
   statusIndicator: $("status-indicator"),
   statusText: $("status-text"),
   btnRefresh: $("btn-refresh"),
+  btnCollectionMode: $("btn-collection-mode"),
+  collectionModeLabel: $("collection-mode-label"),
   btnExportAll: $("btn-export-all"),
   btnExportFile: $("btn-export-file"),
   btnCopy: $("btn-copy"),
@@ -172,6 +181,62 @@ function tabId(path, section) {
 
 // ── Resource discovery via DevTools API (no debugger attach) ────────────────
 
+// chrome.devtools.network's getContent() callbacks (and fetch() to sites the
+// page references) can hang forever instead of erroring -- e.g. an evicted
+// HAR body, a streaming response, or an unresponsive sourcemap/API host. Left
+// unbounded, those pile up for as long as DevTools stays open and can exhaust
+// the browser's shared connection pool, stalling unrelated tabs. Every
+// network/CDP round trip in this file must go through a hard timeout.
+const NETWORK_CALL_TIMEOUT_MS = 8000;
+
+function withTimeout(promise, ms, fallback) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(fallback);
+    }, ms);
+    promise.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
+  });
+}
+
+async function fetchWithTimeout(url, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 function isBlacklistedResourceURL(url) {
   if (!url) return false;
   return RESOURCE_URL_BLACKLIST.some((prefix) => url === prefix || url.startsWith(prefix + "/"));
@@ -190,9 +255,10 @@ function getHAR() {
 }
 
 function getResourceContent(resource) {
-  return new Promise((resolve) => {
+  const pending = new Promise((resolve) => {
     resource.getContent((content, encoding) => resolve({ content, encoding }));
   });
+  return withTimeout(pending, NETWORK_CALL_TIMEOUT_MS, { content: null, encoding: null });
 }
 
 function decodeResource({ content, encoding }) {
@@ -261,7 +327,7 @@ async function loadMap(mapURL, resourceMap) {
   }
 
   try {
-    const r = await fetch(mapURL);
+    const r = await fetchWithTimeout(mapURL, NETWORK_CALL_TIMEOUT_MS);
     if (!r.ok) return null;
     return await r.json();
   } catch {
@@ -337,6 +403,15 @@ function addMapToTree(map, scriptURL, mapURL) {
     if (!cleanPath) continue;
     const content =
       map.sourcesContent && map.sourcesContent[i] != null ? map.sourcesContent[i] : null;
+    const captureKey = `${scriptURL}\0${mapURL}\0${raw}`;
+    const existing = Object.values(state.sourceTree).find(
+      (entry) => entry._captureKey === captureKey
+    );
+    if (existing) {
+      existing.content = content;
+      existing.fetchStatus = content != null ? "ok" : "missing";
+      continue;
+    }
     const path = disambiguatePath(cleanPath, raw, content, state.sourceTree);
     state.sourceTree[path] = {
       content,
@@ -344,6 +419,7 @@ function addMapToTree(map, scriptURL, mapURL) {
       scriptURL,
       mapURL,
       fetchStatus: content != null ? "ok" : "missing",
+      _captureKey: captureKey,
     };
     added++;
   }
@@ -364,6 +440,8 @@ const TYPE_DEFAULT_EXT = {
 const API_RESOURCE_TYPES = new Set(["xhr", "fetch", "eventsource", "websocket"]);
 
 function isApiResource(resource) {
+  const method = (resource.method || resource.request?.method || "").toUpperCase();
+  if (method && method !== "GET" && method !== "HEAD") return true;
   if (API_RESOURCE_TYPES.has((resource.type || resource._resourceType || "").toLowerCase())) {
     return true;
   }
@@ -406,6 +484,13 @@ function contentTypeFromHAR(entry) {
   return (header && header.value) || response.content?.mimeType || null;
 }
 
+function requestContentTypeFromHAR(entry) {
+  const request = entry && entry.request;
+  if (!request) return null;
+  const header = (request.headers || []).find((h) => h.name.toLowerCase() === "content-type");
+  return (header && header.value) || request.postData?.mimeType || null;
+}
+
 function updateContentTypesFromHAR(har) {
   if (!har || !har.entries) return;
   for (const entry of har.entries) {
@@ -415,13 +500,40 @@ function updateContentTypesFromHAR(har) {
   }
 }
 
-function addRawResource(r) {
+function removeRawResource(url) {
+  const location = state.rawByURL.get(url);
+  if (!location) return null;
+  delete state.rawTree[location.path];
+  state.rawByURL.delete(url);
+  return location;
+}
+
+function addRawResource(r, refreshExisting = false) {
   if (!r || !r.url) return false;
-  if (state.rawByURL.has(r.url)) return false;
+  if (isApiResource(r)) return Boolean(removeRawResource(r.url));
+
+  const existingLocation = state.rawByURL.get(r.url);
+  if (existingLocation) {
+    const existing = state.rawTree[existingLocation.path];
+    if (!existing) {
+      state.rawByURL.delete(r.url);
+    } else {
+      existing.type = r.type || existing.type;
+      existing.contentType =
+        r.contentType || state.contentTypesByURL.get(r.url) || existing.contentType;
+      existing._resource = r;
+      if (refreshExisting) {
+        existing.content = null;
+        existing.fetchStatus = null;
+        state.rawCache.delete(r.url);
+      }
+      return refreshExisting;
+    }
+  }
+
   const base = rawResourcePath(r.url, r.type);
   if (!base) return false;
-  const section = isApiResource(r) ? "requests" : "raw";
-  const tree = treeFor(section);
+  const tree = state.rawTree;
   let path = base;
   let i = 1;
   while (tree[path]) {
@@ -437,15 +549,222 @@ function addRawResource(r) {
     contentType: state.contentTypesByURL.get(r.url) || null,
     _resource: r,
   };
-  state.rawByURL.set(r.url, { path, section });
+  state.rawByURL.set(r.url, { path, section: "raw" });
   return true;
 }
 
-function rebuildRawTree(resources) {
-  state.rawTree = {};
-  state.requestTree = {};
-  state.rawByURL = new Map();
-  for (const r of resources) addRawResource(r);
+function syncRawTree(resources, preserveExisting) {
+  if (!preserveExisting) {
+    state.rawTree = {};
+    state.requestTree = {};
+    state.rawByURL = new Map();
+    state.requestPathCounts = new Map();
+    state.capturedRequestKeys = new Set();
+    state.requestOccurrences = new Map();
+  }
+  for (const r of resources) addRawResource(r, preserveExisting);
+}
+
+function headersFromHAR(headers) {
+  return (headers || []).map(({ name, value }) => ({ name, value }));
+}
+
+function paramsToObject(params) {
+  const body = {};
+  for (const param of params || []) {
+    const value =
+      param.fileName || param.contentType
+        ? {
+            value: param.value ?? null,
+            fileName: param.fileName || null,
+            contentType: param.contentType || null,
+          }
+        : (param.value ?? "");
+    if (!(param.name in body)) {
+      body[param.name] = value;
+    } else if (Array.isArray(body[param.name])) {
+      body[param.name].push(value);
+    } else {
+      body[param.name] = [body[param.name], value];
+    }
+  }
+  return body;
+}
+
+function structuredBody(text, mimeType, params, encoding) {
+  if (encoding === "base64" && text != null) {
+    return { encoding: "base64", data: text };
+  }
+  if (text != null) {
+    const mime = (mimeType || "").split(";")[0].trim().toLowerCase();
+    if (mime === "application/json" || mime.endsWith("+json")) {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    }
+    if (mime === "application/x-www-form-urlencoded") {
+      return paramsToObject(
+        Array.from(new URLSearchParams(text), ([name, value]) => ({ name, value }))
+      );
+    }
+    return text;
+  }
+  if (params?.length) return paramsToObject(params);
+  return undefined;
+}
+
+function getFinishedRequestContent(entry) {
+  const fallback = {
+    content: entry.response?.content?.text ?? null,
+    encoding: entry.response?.content?.encoding ?? null,
+  };
+  if (typeof entry.getContent !== "function") return Promise.resolve(fallback);
+  const pending = new Promise((resolve) => {
+    try {
+      entry.getContent((content, encoding) => resolve({ content, encoding }));
+    } catch {
+      resolve(fallback);
+    }
+  });
+  return withTimeout(pending, NETWORK_CALL_TIMEOUT_MS, fallback);
+}
+
+function requestPathFor(url, type) {
+  const base = rawResourcePath(url, type) || "requests/request";
+  const candidate = `${base}.request.json`;
+  let ordinal = (state.requestPathCounts.get(candidate) || 0) + 1;
+  let path = ordinal === 1 ? candidate : insertSuffixBeforeExt(candidate, String(ordinal));
+  while (state.requestTree[path]) {
+    ordinal++;
+    path = insertSuffixBeforeExt(candidate, String(ordinal));
+  }
+  state.requestPathCounts.set(candidate, ordinal);
+  return path;
+}
+
+function requestFingerprint(entry) {
+  const request = entry?.request;
+  return [
+    entry?.startedDateTime || "",
+    request?.method || "",
+    request?.url || "",
+    request?.postData?.text || "",
+    entry?.time ?? "",
+    entry?.response?.status ?? "",
+  ].join("\0");
+}
+
+function nextFinishedRequestKey(entry) {
+  const fingerprint = requestFingerprint(entry);
+  const occurrence = (state.requestOccurrences.get(fingerprint) || 0) + 1;
+  state.requestOccurrences.set(fingerprint, occurrence);
+  return `${fingerprint}\0${occurrence}`;
+}
+
+function captureRequestsFromHAR(entries, deferRebuild) {
+  const occurrences = new Map();
+  return mapWithConcurrency(entries || [], 6, (entry) => {
+    const fingerprint = requestFingerprint(entry);
+    const occurrence = (occurrences.get(fingerprint) || 0) + 1;
+    occurrences.set(fingerprint, occurrence);
+    return captureRequestSnapshot(entry, deferRebuild, `${fingerprint}\0${occurrence}`);
+  });
+}
+
+function migrateRawTabToRequest(url, requestPath) {
+  const location = removeRawResource(url);
+  if (!location) return false;
+  const oldId = tabId(location.path, "raw");
+  const newId = tabId(requestPath, "requests");
+  for (const tab of state.tabs) {
+    if (tab.id !== oldId) continue;
+    tab.id = newId;
+    tab.path = requestPath;
+    tab.section = "requests";
+    tab.dirty = false;
+  }
+  if (state.activeTabId === oldId) state.activeTabId = newId;
+  const wasSelected = state.selectedSection === "raw" && state.selectedPath === location.path;
+  if (wasSelected) {
+    state.selectedSection = "requests";
+    state.selectedPath = requestPath;
+  }
+  return wasSelected;
+}
+
+async function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) {
+  const request = entry?.request;
+  const url = request?.url;
+  if (!url || isBlacklistedResourceURL(url) || !isApiResource(entry)) return false;
+
+  const captureKey = requestKey || nextFinishedRequestKey(entry);
+  if (state.capturedRequestKeys.has(captureKey)) return false;
+  state.capturedRequestKeys.add(captureKey);
+
+  const sequence = ++state.requestCaptureSequence;
+  const path = requestPathFor(url, entry._resourceType || "fetch");
+  const responseContentType = contentTypeFromHAR(entry);
+  const requestContentType = requestContentTypeFromHAR(entry);
+  if (responseContentType) state.contentTypesByURL.set(url, responseContentType);
+
+  const { content: responseText, encoding: responseEncoding } =
+    await getFinishedRequestContent(entry);
+
+  const requestBody = structuredBody(
+    request.postData?.text,
+    requestContentType,
+    request.postData?.params,
+    null
+  );
+  const responseBody = structuredBody(responseText, responseContentType, null, responseEncoding);
+  const record = {
+    capturedAt: entry.startedDateTime || new Date().toISOString(),
+    durationMs: entry.time ?? null,
+    resourceType: entry._resourceType || null,
+    request: {
+      method: request.method || "GET",
+      url,
+      httpVersion: request.httpVersion || null,
+      headers: headersFromHAR(request.headers),
+      bodyMimeType: requestContentType,
+      ...(requestBody === undefined ? {} : { body: requestBody }),
+    },
+    response: {
+      status: entry.response?.status ?? null,
+      statusText: entry.response?.statusText || "",
+      httpVersion: entry.response?.httpVersion || null,
+      headers: headersFromHAR(entry.response?.headers),
+      bodyMimeType: responseContentType,
+      ...(responseBody === undefined ? {} : { body: responseBody }),
+    },
+  };
+
+  const wasSelected = migrateRawTabToRequest(url, path);
+  state.requestTree[path] = {
+    content: JSON.stringify(record, null, 2) + "\n",
+    sourceURL: url,
+    scriptURL: url,
+    mapURL: null,
+    type: "request",
+    contentType: "application/json",
+    fetchStatus: "ok",
+    _captureSequence: sequence,
+    _request: entry,
+  };
+
+  const tab = state.tabs.find((item) => item.id === tabId(path, "requests"));
+  if (tab) tab.dirty = false;
+
+  if (!deferRebuild) {
+    renderTabs();
+    rebuild();
+    if (wasSelected || (state.selectedSection === "requests" && state.selectedPath === path)) {
+      selectFile(path, "requests");
+    }
+  }
+  return true;
 }
 
 async function processScript(resource, resourceMap) {
@@ -467,17 +786,22 @@ async function processScript(resource, resourceMap) {
   return addMapToTree(map, resource.url, resolved);
 }
 
-async function scanAll() {
+async function scanAll({ preserveExisting = state.collectAcrossNavigations } = {}) {
   if (state.scanning) return;
   state.scanning = true;
-  setStatus("connecting", "Scanning sources…");
+  setStatus(
+    "connecting",
+    state.collectAcrossNavigations ? "Collecting sources and requests…" : "Scanning sources…"
+  );
   try {
-    updateContentTypesFromHAR(await getHAR());
+    const har = await getHAR();
+    updateContentTypesFromHAR(har);
     const resources = await getResources();
     const resourceMap = new Map(resources.map((r) => [r.url, r]));
     const scripts = resources.filter((r) => r.type === "script");
 
-    rebuildRawTree(resources);
+    syncRawTree(resources, preserveExisting);
+    await captureRequestsFromHAR(har?.entries, true);
 
     for (const s of scripts) {
       await processScript(s, resourceMap);
@@ -504,10 +828,10 @@ function rebuild() {
   if (visibleCount === 0) {
     const msg =
       state.showMapped && !state.showRaw
-        ? "Watching — no source maps detected yet"
+        ? `${state.collectAcrossNavigations ? "Collecting" : "Watching"} — no source maps detected yet`
         : !state.showMapped && state.showRaw
-          ? "Watching — no resources or requests captured yet"
-          : "Watching — nothing to show";
+          ? `${state.collectAcrossNavigations ? "Collecting" : "Watching"} — no resources or requests captured yet`
+          : `${state.collectAcrossNavigations ? "Collecting" : "Watching"} — nothing to show`;
     setStatus("active", msg);
     el.btnExportAll.disabled = true;
     el.emptyState.style.display = "flex";
@@ -519,16 +843,49 @@ function rebuild() {
   if (state.showMapped) parts.push(`${mappedCount} mapped`);
   if (state.showRaw) parts.push(`${rawCount} raw`);
   if (state.showRaw) parts.push(`${requestCount} requests`);
-  setStatus("active", `Watching — ${parts.join(", ")}`);
+  setStatus(
+    "active",
+    `${state.collectAcrossNavigations ? "Collecting across navigations" : "Watching"} — ${parts.join(", ")}`
+  );
   el.btnExportAll.disabled = false;
   renderTree();
 }
 
+function resetCapture() {
+  state.sourceTree = {};
+  state.rawTree = {};
+  state.requestTree = {};
+  state.rawByURL = new Map();
+  state.requestPathCounts = new Map();
+  state.capturedRequestKeys = new Set();
+  state.requestOccurrences = new Map();
+  state.requestCaptureSequence = 0;
+  state.contentTypesByURL = new Map();
+  state.scannedScripts.clear();
+  state.rawCache = new Map();
+  state.treeModel = null;
+  state.rawTreeModel = null;
+  state.requestTreeModel = null;
+  state.selectedPath = null;
+  state.selectedSection = null;
+  state.tabs = [];
+  state.activeTabId = null;
+  openDirs.clear();
+  userToggledDirs.clear();
+  el.fileCount.textContent = "—";
+  el.btnExportAll.disabled = true;
+  el.emptyState.style.display = "flex";
+  el.treeRoot.style.display = "none";
+  resetPreview();
+  renderTabs();
+}
+
 // Live updates
 insp.onResourceAdded.addListener((resource) => {
-  if (!resource) return;
+  if (!resource || !panelVisible) return;
   setTimeout(async () => {
-    const addedRaw = addRawResource(resource);
+    if (!panelVisible) return;
+    const addedRaw = addRawResource(resource, state.collectAcrossNavigations);
     let addedMapped = 0;
     if (resource.type === "script") {
       const resources = await getResources();
@@ -540,82 +897,21 @@ insp.onResourceAdded.addListener((resource) => {
 });
 
 network.onNavigated.addListener(() => {
-  state.sourceTree = {};
-  state.rawTree = {};
-  state.requestTree = {};
-  state.rawByURL = new Map();
-  state.contentTypesByURL = new Map();
   state.scannedScripts.clear();
   state.rawCache = new Map();
-  state.treeModel = null;
-  state.rawTreeModel = null;
-  state.requestTreeModel = null;
-  state.selectedPath = null;
-  state.selectedSection = null;
-  state.tabs = [];
-  state.activeTabId = null;
-  el.fileCount.textContent = "—";
-  el.btnExportAll.disabled = true;
-  el.emptyState.style.display = "flex";
-  el.treeRoot.style.display = "none";
-  resetPreview();
-  renderTabs();
-  setTimeout(scanAll, 400);
+  if (!state.collectAcrossNavigations) resetCapture();
+  setTimeout(() => scanAll({ preserveExisting: state.collectAcrossNavigations }), 400);
 });
 
 network.onRequestFinished.addListener((request) => {
+  if (!panelVisible) return;
   const url = request.request && request.request.url;
   const contentType = contentTypeFromHAR(request);
-  if (!url || !contentType || isBlacklistedResourceURL(url)) return;
-  state.contentTypesByURL.set(url, contentType);
-  const location = state.rawByURL.get(url);
-  if (location) {
-    const entry = treeFor(location.section)[location.path];
-    if (entry) {
-      entry.contentType = contentType;
-      if (location.section === "raw" && isApiResource(entry)) {
-        delete state.rawTree[location.path];
-        let requestPath = location.path;
-        let suffix = 1;
-        while (state.requestTree[requestPath]) requestPath = `${location.path}.${++suffix}`;
-        state.requestTree[requestPath] = entry;
-        state.rawByURL.set(url, { path: requestPath, section: "requests" });
-        const oldId = tabId(location.path, "raw");
-        const newId = tabId(requestPath, "requests");
-        for (const tab of state.tabs) {
-          if (tab.id !== oldId) continue;
-          tab.id = newId;
-          tab.path = requestPath;
-          tab.section = "requests";
-        }
-        if (state.activeTabId === oldId) state.activeTabId = newId;
-        const wasSelected = state.selectedSection === "raw" && state.selectedPath === location.path;
-        if (wasSelected) {
-          state.selectedSection = "requests";
-          state.selectedPath = requestPath;
-        }
-        renderTabs();
-        rebuild();
-        if (wasSelected) selectFile(requestPath, "requests");
-      }
-    }
-    return;
-  }
-  if (
-    isApiResource({
-      url,
-      type: request._resourceType,
-      contentType,
-    })
-  ) {
-    addRawResource({
-      url,
-      type: request._resourceType || "fetch",
-      contentType,
-      getContent: request.getContent?.bind(request),
-    });
-    rebuild();
-  }
+  if (!url || isBlacklistedResourceURL(url)) return;
+  if (contentType) state.contentTypesByURL.set(url, contentType);
+  captureRequestSnapshot(request).catch((error) => {
+    setStatus("inactive", `Request capture failed: ${error.message}`);
+  });
 });
 
 // ── Tree model ───────────────────────────────────────────────────────────────
@@ -647,6 +943,23 @@ function buildTreeModel(flat) {
 // ── Render tree ──────────────────────────────────────────────────────────────
 
 const openDirs = new Set();
+const userToggledDirs = new Set();
+
+// When the user opens a directory that contains only a single subdirectory
+// (no files, no sibling dirs), keep opening down that chain of single-child
+// dirs until one has a file or more than one entry. Only walks the chain
+// starting at the directory being opened -- unrelated dirs elsewhere in the
+// tree are left untouched.
+function expandSingleChildChain(dir, section) {
+  let node = dir;
+  while (Object.keys(node.files).length === 0 && Object.values(node.children).length === 1) {
+    const child = Object.values(node.children)[0];
+    const key = dirKey(section, child.path);
+    if (userToggledDirs.has(key)) break;
+    openDirs.add(key);
+    node = child;
+  }
+}
 
 function renderTree() {
   el.emptyState.style.display = "none";
@@ -790,11 +1103,13 @@ function renderDirNode(dir, container, depth, filter, section) {
 
   row.addEventListener("click", (e) => {
     e.stopPropagation();
+    userToggledDirs.add(key);
     const nowOpen = childContainer.style.display === "none";
     childContainer.style.display = nowOpen ? "block" : "none";
     row.querySelector(".node-toggle").classList.toggle("open", nowOpen);
     if (nowOpen) {
       openDirs.add(key);
+      expandSingleChildChain(dir, section);
       if (!childrenRendered) {
         renderNode(dir, childContainer, depth + 1, filter, section);
         childrenRendered = true;
@@ -1317,7 +1632,7 @@ function resetPreview() {
   state.lastPreviewText = "";
   state.lastPreviewOriginal = "";
   el.editorContainer.style.display = "none";
-  SourceEditor.hide().catch(() => { });
+  SourceEditor.hide().catch(() => {});
   el.previewImageWrap.style.display = "none";
   el.previewFooter.style.display = "none";
   el.previewActions.style.display = "none";
@@ -1378,7 +1693,7 @@ async function selectFile(path, section, position) {
     el.previewActions.style.display = "flex";
     el.previewFooter.style.display = "flex";
     el.editorContainer.style.display = "none";
-    SourceEditor.hide().catch(() => { });
+    SourceEditor.hide().catch(() => {});
     el.previewPlaceholder.style.display = "flex";
     const failed = entry.fetchStatus === "missing";
     const headline = failed
@@ -1406,7 +1721,7 @@ function renderImage(entry, path) {
   el.previewActions.style.display = "flex";
   el.previewPlaceholder.style.display = "none";
   el.editorContainer.style.display = "none";
-  SourceEditor.hide().catch(() => { });
+  SourceEditor.hide().catch(() => {});
   el.previewImageWrap.style.display = "flex";
 
   const url = entry.sourceURL || entry.scriptURL || "";
@@ -1456,7 +1771,7 @@ async function loadRawByURL(url, resource) {
   }
   if (!content) {
     try {
-      const resp = await fetch(url);
+      const resp = await fetchWithTimeout(url, NETWORK_CALL_TIMEOUT_MS);
       if (resp.ok) content = await resp.text();
     } catch {
       content = null;
@@ -2280,13 +2595,23 @@ async function openQuickPicker(mode) {
 }
 
 el.btnRefresh.addEventListener("click", () => {
-  state.scannedScripts.clear();
-  state.sourceTree = {};
-  state.rawTree = {};
-  state.requestTree = {};
-  state.rawByURL = new Map();
-  state.rawCache = new Map();
-  scanAll();
+  resetCapture();
+  scanAll({ preserveExisting: false });
+});
+
+function updateCollectionModeUI() {
+  const active = state.collectAcrossNavigations;
+  el.btnCollectionMode.classList.toggle("active", active);
+  el.btnCollectionMode.setAttribute("aria-pressed", active ? "true" : "false");
+  el.collectionModeLabel.textContent = active ? "Collecting" : "Collect navigations";
+}
+
+el.btnCollectionMode.addEventListener("click", () => {
+  state.collectAcrossNavigations = !state.collectAcrossNavigations;
+  prefs.collectAcrossNavigations = state.collectAcrossNavigations;
+  savePref("collectAcrossNavigations", prefs.collectAcrossNavigations);
+  updateCollectionModeUI();
+  rebuild();
 });
 
 el.viewToggle.addEventListener("click", (e) => {
@@ -2366,7 +2691,7 @@ el.btnCopy.addEventListener("click", async () => {
 let wrapEnabled = false;
 el.btnWrap.addEventListener("click", () => {
   wrapEnabled = !wrapEnabled;
-  SourceEditor.toggleWrap(wrapEnabled).catch(() => { });
+  SourceEditor.toggleWrap(wrapEnabled).catch(() => {});
   el.btnWrap.classList.toggle("active", wrapEnabled);
 });
 
@@ -2400,7 +2725,7 @@ function applyEditorPreferences() {
     fontFamily: prefs.editorFontFamily,
     fontSize: prefs.editorFontSize,
     smoothScrolling: !prefs.editorDisableSmoothScroll,
-  }).catch(() => { });
+  }).catch(() => {});
 }
 
 el.optEditorTheme.addEventListener("change", () => {
@@ -2585,5 +2910,6 @@ function formatBytes(n) {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
+updateCollectionModeUI();
 renderTabs();
 scanAll();

@@ -28,6 +28,11 @@ npm run build
 3. Sources populate automatically — no Connect step, no debugger banner
 4. Reload the page if scripts loaded before DevTools was open
 
+Enable **Collect navigations** to retain captured files while the inspected page reloads or navigates.
+The mode stays enabled until toggled off, letting later routes and lazy requests add to the same
+collection. Turning it off keeps the current collection visible; the next navigation returns to the
+normal single-page reset behavior. The refresh button always starts a fresh collection.
+
 ### Exporting
 
 | Action               | How                                                                         |
@@ -49,7 +54,17 @@ npm run build
 - Source Exporter shortcuts only apply while its DevTools panel has focus.
 - Edited content is used by Copy and Export and marked with a dot in its tab.
 
-The tree separates source-mapped files under **Authored**, deployed files under **Deployed**, and API responses under **Requests**.
+The tree separates source-mapped files under **Authored**, deployed files under **Deployed**, and API
+request snapshots under **Requests**. Every completed request gets its own JSON snapshot, including
+repeated calls to the same URL. Same-path requests receive numbered filenames such as
+`gql.request.json`, `gql.request.2.json`, and `gql.request.3.json`. Each snapshot includes:
+
+- capture time, duration, and resource type
+- request method, full URL, HTTP version, headers, MIME type, and request body
+- response status, HTTP version, headers, MIME type, and response body
+
+JSON and URL-encoded bodies are stored as structured JSON. Other text bodies retain their original
+format, while binary response data is identified and preserved as base64.
 
 Choose **ZIP** or **TAR** format in the toolbar before exporting.
 

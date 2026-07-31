@@ -12,7 +12,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md}\"",
     "format:check": "prettier --check \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md}\"",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run build"
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run build",
+    "fix": "npm run lint:fix && npm run format && npm run build"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
