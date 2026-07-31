@@ -82,6 +82,12 @@ body {
   gap: 6px;
 }
 
+#version {
+  font-size: 9px;
+  color: #b6b6b6;
+  font-variant: proportional-nums;
+}
+
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
 #toolbar {
   display: flex;
@@ -125,6 +131,7 @@ body {
 }
 
 @keyframes pulse {
+
   0%,
   100% {
     opacity: 1;

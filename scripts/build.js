@@ -22,6 +22,14 @@ fs.cpSync(source, output, {
 });
 fs.cpSync(monacoSource, monacoOutput, { recursive: true });
 
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const panelPath = path.join(output, "panel", "panel.html");
+const panelHtml = fs.readFileSync(panelPath, "utf8");
+if (!panelHtml.includes("{{version}}")) {
+  throw new Error("panel.html version placeholder is missing");
+}
+fs.writeFileSync(panelPath, panelHtml.replace("{{version}}", packageJson.version));
+
 const workerMap = {
   editor: "../vendor/monaco/vs/base/worker/workerMain.js",
   json: "../vendor/monaco/vs/base/worker/workerMain.js",
