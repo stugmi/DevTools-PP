@@ -145,6 +145,7 @@ module.exports = [
         generalRows: "readonly",
         getAllItems: "readonly",
         getAllItemsInSection: "readonly",
+        getAuthoredDocuments: "readonly",
         getBeautifier: "readonly",
         getBodyPreview: "readonly",
         getDomainLabel: "readonly",

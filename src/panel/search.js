@@ -58,8 +58,30 @@ function updateEditedDocument(editorDocument, content) {
   el.previewMeta.textContent = `${lines.toLocaleString()} lines · ${formatBytes(bytes)} · modified`;
 }
 
+// Authored (source-mapped) JS/TS files that already have their content, for the
+// editor's virtual TypeScript project. Synchronous and cheap: it never fetches,
+// and skips node_modules and anything huge.
+function getAuthoredDocuments() {
+  const docs = [];
+  for (const [path, entry] of Object.entries(state.sourceTree)) {
+    if (typeof entry.content !== "string" || entry.content.length > 400_000) continue;
+    if (/(^|\/)node_modules\//.test(path)) continue;
+    const language = detectEntryLang(path, entry);
+    if (language !== "typescript" && language !== "javascript") continue;
+    docs.push({
+      id: tabId(path, "mapped"),
+      path,
+      section: "mapped",
+      content: entry.content,
+      language,
+    });
+  }
+  return docs;
+}
+
 SourceEditor.configure({
   getDocuments: getWorkspaceDocuments,
+  getAuthoredDocuments,
   onChange: updateEditedDocument,
   openDocument(id, position) {
     const separator = id.indexOf("::");

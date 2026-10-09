@@ -45,6 +45,7 @@ window.SourceEditor = (() => {
         workspace.onChange(current, editor.getValue());
       }
     });
+    configureTypeScript(monaco);
     registerLanguageProviders(monaco);
     registerNavigation(monaco);
     return editor;
@@ -60,7 +61,8 @@ window.SourceEditor = (() => {
       .split("/")
       .map((part) => encodeURIComponent(part))
       .join("/");
-    return monaco.Uri.parse(`source-exporter://${safeSection}/${safePath}`);
+    // file:/// so the TypeScript service can resolve imports between models.
+    return monaco.Uri.parse(`file:///${safeSection}/${safePath}`);
   }
 
   function ensureModel(monaco, document) {
@@ -78,11 +80,165 @@ window.SourceEditor = (() => {
     return model;
   }
 
+  // ── TypeScript project for source-mapped (authored) files ───────────────
+  //
+  // A source map only contains the project's own files. Out of the box,
+  // Monaco's TypeScript service has no module resolution configured and only
+  // knows about the one file that is open, so every import -- even `./env`
+  // next to it -- is reported as "Cannot find module". To fix that:
+  //   1. configure Node-style resolution, JSX and module detection,
+  //   2. register the authored files as a virtual project (file:///mapped/...)
+  //      so relative imports and `src/...`-style aliases resolve to them,
+  //   3. declare unresolvable packages/assets as `any` and hide the
+  //      "cannot find name/module" family of diagnostics, which are always
+  //      false positives here (no node_modules, no @types, bundler globals).
+  const AMBIENT_LIB = [
+    "declare module '*';",
+    "declare var process: any;",
+    "declare var require: any;",
+    "declare var module: any;",
+    "declare var exports: any;",
+    "declare var global: any;",
+    "declare var __dirname: string;",
+    "declare var __filename: string;",
+    "declare var __webpack_require__: any;",
+    "declare var __webpack_public_path__: string;",
+  ].join("\n");
+
+  // 2307/2792/7016: unresolved module / missing declaration file.
+  // 2304/2580/2591/2503: unknown name / namespace (bundler-injected globals).
+  // 2686/7026/2875: JSX without React in scope / intrinsic elements / runtime.
+  const IGNORED_DIAGNOSTICS = [2307, 2792, 7016, 2304, 2580, 2591, 2503, 2686, 7026, 2875];
+  const PROJECT_MAX_FILES = 1500;
+  const PROJECT_MAX_BYTES = 400_000;
+
+  let diagnosticsMode = "smart";
+  let projectRoots = [""];
+  let projectActive = false;
+  let projectDirty = true;
+  let projectTimer = null;
+  let projectUris = new Set();
+
+  function applyCompilerOptions(monaco) {
+    const ts = monaco.languages.typescript;
+    if (!ts) return;
+    const options = {
+      target: ts.ScriptTarget.ESNext,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeJs,
+      // 3 = "force": every file is a module, so files that happen to have no
+      // import/export don't leak declarations into one shared global scope.
+      moduleDetection: 3,
+      jsx: ts.JsxEmit.Preserve,
+      allowJs: true,
+      allowNonTsExtensions: true,
+      esModuleInterop: true,
+      allowSyntheticDefaultImports: true,
+      resolveJsonModule: true,
+      skipLibCheck: true,
+      noEmit: true,
+      baseUrl: "file:///mapped",
+      paths: { "*": projectRoots.map((root) => `${root}*`) },
+    };
+    ts.typescriptDefaults.setCompilerOptions(options);
+    ts.javascriptDefaults.setCompilerOptions(options);
+  }
+
+  function applyDiagnostics(monaco) {
+    const ts = monaco.languages.typescript;
+    if (!ts) return;
+    const off = diagnosticsMode === "off";
+    ts.typescriptDefaults.setDiagnosticsOptions({
+      noSyntaxValidation: off,
+      noSemanticValidation: off || diagnosticsMode === "syntax",
+      noSuggestionDiagnostics: off,
+      diagnosticCodesToIgnore: IGNORED_DIAGNOSTICS,
+    });
+    ts.javascriptDefaults.setDiagnosticsOptions({
+      noSyntaxValidation: off,
+      noSemanticValidation: true,
+      noSuggestionDiagnostics: off,
+    });
+  }
+
+  function configureTypeScript(monaco) {
+    const ts = monaco.languages.typescript;
+    if (!ts) return;
+    applyCompilerOptions(monaco);
+    ts.typescriptDefaults.addExtraLib(AMBIENT_LIB, "file:///ambient/bundler-globals.d.ts");
+    ts.javascriptDefaults.addExtraLib(AMBIENT_LIB, "file:///ambient/bundler-globals.d.ts");
+    applyDiagnostics(monaco);
+  }
+
+  // Source-map paths usually carry a project-name prefix (`app/src/env.ts`)
+  // while code imports `src/env`. Work out which prefixes to try so bare
+  // specifiers resolve: the root itself, whatever precedes a `src/` folder,
+  // and the single shared top-level folder if there is one.
+  function computeProjectRoots(paths) {
+    const roots = new Set([""]);
+    const top = new Set();
+    for (const path of paths) {
+      const parts = path.split("/");
+      top.add(parts[0]);
+      const at = parts.indexOf("src");
+      if (at > 0) roots.add(parts.slice(0, at).join("/") + "/");
+    }
+    if (top.size === 1 && paths.some((path) => path.includes("/"))) roots.add([...top][0] + "/");
+    return [...roots].sort();
+  }
+
+  // Creates models for authored files that don't have one yet. Existing models
+  // are left alone on purpose: the open file may be showing a pretty-printed
+  // version that differs from the stored source.
+  function syncProject(monaco) {
+    projectDirty = false;
+    if (!workspace?.getAuthoredDocuments) return;
+    const docs = workspace.getAuthoredDocuments().slice(0, PROJECT_MAX_FILES);
+    const roots = computeProjectRoots(docs.map((doc) => doc.path));
+    if (roots.join("|") !== projectRoots.join("|")) {
+      projectRoots = roots;
+      applyCompilerOptions(monaco);
+    }
+    const wanted = new Set();
+    for (const doc of docs) {
+      const uri = modelUri(monaco, doc);
+      const key = uri.toString();
+      wanted.add(key);
+      if (!monaco.editor.getModel(uri)) monaco.editor.createModel(doc.content, doc.language, uri);
+      modelMeta.set(key, doc.id);
+    }
+    for (const key of projectUris) {
+      if (wanted.has(key)) continue;
+      const model = monaco.editor.getModels().find((item) => item.uri.toString() === key);
+      if (model && model !== editor.getModel()) {
+        modelMeta.delete(key);
+        model.dispose();
+      }
+    }
+    projectUris = wanted;
+  }
+
+  // Called whenever the captured sources change. Does nothing until an
+  // authored file has actually been opened, so merely capturing a site never
+  // pays for loading the whole project into the TypeScript worker.
+  function scheduleProjectSync() {
+    projectDirty = true;
+    if (!projectActive) return;
+    clearTimeout(projectTimer);
+    projectTimer = setTimeout(() => {
+      ready.then(() => syncProject(window.monaco)).catch(() => {});
+    }, 800);
+  }
+
   async function show(document, position) {
     await ready;
     const monaco = window.monaco;
     suppressChanges = true;
     const model = ensureModel(monaco, document);
+    if (document.section === "mapped") {
+      projectActive = true;
+      if (projectDirty) syncProject(monaco);
+    }
     current = document;
     editor.setModel(model);
     suppressChanges = false;
@@ -137,6 +293,10 @@ window.SourceEditor = (() => {
     const options = {};
     if (preferences.fontFamily) options.fontFamily = preferences.fontFamily;
     if (preferences.fontSize) options.fontSize = Number(preferences.fontSize);
+    if (preferences.tsDiagnostics && preferences.tsDiagnostics !== diagnosticsMode) {
+      diagnosticsMode = preferences.tsDiagnostics;
+      applyDiagnostics(window.monaco);
+    }
     if (typeof preferences.smoothScrolling === "boolean") {
       options.smoothScrolling = preferences.smoothScrolling;
     }
@@ -335,6 +495,7 @@ window.SourceEditor = (() => {
     findReferences,
     goToDefinition,
     getSelectedText,
+    scheduleProjectSync,
     toggleWrap,
     applyPreferences,
   };

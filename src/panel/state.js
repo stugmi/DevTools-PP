@@ -14,6 +14,7 @@ const PREF_KEYS = {
   workspace: "se.workspace",
   formatBodies: "se.formatBodies",
   archiveFormat: "se.archiveFormat",
+  tsDiagnostics: "se.tsDiagnostics",
 };
 
 const EDITOR_DEFAULTS = {
@@ -41,6 +42,10 @@ const prefs = {
   // the user explicitly turned it off.
   formatBodies: localStorage.getItem(PREF_KEYS.formatBodies) !== "0",
   archiveFormat: localStorage.getItem(PREF_KEYS.archiveFormat) === "tar" ? "tar" : "zip",
+  // How strictly TypeScript checks authored files: "smart" | "syntax" | "off".
+  tsDiagnostics: ["smart", "syntax", "off"].includes(localStorage.getItem(PREF_KEYS.tsDiagnostics))
+    ? localStorage.getItem(PREF_KEYS.tsDiagnostics)
+    : "smart",
 };
 
 try {

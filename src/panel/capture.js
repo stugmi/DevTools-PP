@@ -545,6 +545,7 @@ function rebuild() {
     el.btnExportAll.disabled = false;
   }
   renderTree();
+  SourceEditor.scheduleProjectSync();
 }
 
 function resetCapture() {

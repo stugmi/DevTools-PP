@@ -27,6 +27,7 @@ window.AppSettings = (() => {
       fontFamily: prefs.editorFontFamily,
       fontSize: prefs.editorFontSize,
       smoothScrolling: !prefs.editorDisableSmoothScroll,
+      tsDiagnostics: prefs.tsDiagnostics,
     }).catch(() => {});
   }
 
@@ -107,6 +108,25 @@ window.AppSettings = (() => {
         setPref("prettyDefault", Boolean(value));
         state.prettyView = prefs.prettyDefault;
         rerenderPreview();
+      },
+    },
+    {
+      id: "tsDiagnostics",
+      section: "Files & Preview",
+      label: "TypeScript diagnostics for authored files",
+      description:
+        "Source maps only contain the site's own files, so imports of packages and path aliases can't always be resolved. Smart hides those unresolved import/name errors but keeps real type errors.",
+      type: "select",
+      options: [
+        { value: "smart", label: "Smart (hide unresolved imports)" },
+        { value: "syntax", label: "Syntax errors only" },
+        { value: "off", label: "Off" },
+      ],
+      default: "smart",
+      get: () => prefs.tsDiagnostics,
+      set(value) {
+        setPref("tsDiagnostics", value);
+        applyEditorPreferences();
       },
     },
     {
