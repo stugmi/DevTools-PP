@@ -1,6 +1,6 @@
 {
   "name": "source-exporter",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "An extension to help exporting and reconstructing source files from source maps",
   "scripts": {

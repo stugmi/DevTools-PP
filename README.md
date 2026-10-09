@@ -59,25 +59,36 @@ locations matching a regular expression. The filter affects the tree, counts, an
 - Source Exporter shortcuts only apply while its DevTools panel has focus.
 - Edited content is used by Copy and Export and marked with a dot in its tab.
 
-The tree separates source-mapped files under **Authored**, deployed files under **Deployed**, and API
-request snapshots under **Requests**. Every completed request gets its own JSON snapshot, including
-repeated calls to the same URL. Same-path requests receive numbered filenames such as
-`gql.request.json`, `gql.request.2.json`, and `gql.request.3.json`. Each snapshot includes:
+The sidebar separates source-mapped files under **Authored**, deployed files under **Deployed**, and
+completed network activity under **Requests**. Requests use a newest-first list instead of a file
+tree. Filter the list by domain, type (**JS**, **XHR**, **Socket**, **Wasm**, or **Other**), method,
+and minimum/maximum duration.
 
-- capture time, duration, and resource type
-- request method, full URL, HTTP version, headers, MIME type, and request body
-- response status, HTTP version, headers, MIME type, and response body
+Selecting a request opens dedicated **Headers**, **Payload**, **Response**, and **Timing** views.
+**Raw** switches headers and bodies between parsed and wire-oriented text. Each export snapshot
+includes capture time, duration, resource type, URL/query parameters, request method, headers,
+cookies, payload, response status, response headers, timing data, MIME types, and available response
+content. JSON and URL-encoded bodies are structured automatically; other text stays unchanged, and
+binary response data is preserved as base64.
 
-JSON and URL-encoded bodies are stored as structured JSON. Other text bodies retain their original
-format, while binary response data is identified and preserved as base64.
+Response content is requested from the DevTools cache only when its **Response** view is opened or
+the request is exported. Socket streams retain their handshake metadata without trying to read an
+unbounded streaming body.
 
 Choose **ZIP** or **TAR** format in the toolbar before exporting.
 
 ## How it works
 
-The extension uses `chrome.devtools.inspectedWindow.getResources()` plus `onResourceAdded` to passively observe scripts the inspected page loads. For each script it scans the tail for a `sourceMappingURL` comment, resolves the map URL, and parses `sourcesContent`. No `chrome.debugger` attach is performed, so there is **no "Source Exporter started debugging this browser" banner**.
+The extension uses `chrome.devtools.inspectedWindow.getResources()` plus `onResourceAdded` to
+passively observe scripts the inspected page loads. The panel does no capture or resource work while
+another DevTools tab is active. When visible, script inspection is debounced until navigation
+activity settles; each script tail is then scanned for a `sourceMappingURL`, and embedded
+`sourcesContent` is reconstructed. No `chrome.debugger` attach is performed, so there is **no "Source
+Exporter started debugging this browser" banner**.
 
-Map content is read from the DevTools resource cache when available (no extra network request, bypasses CORS). Otherwise the panel falls back to a direct `fetch()` using the extension's `<all_urls>` host permission.
+Map content is read from the DevTools resource cache when available (no extra network request,
+bypasses CORS). Otherwise the panel falls back to a direct `fetch()` using the extension's
+`<all_urls>` host permission.
 
 Runtime extension files live under `src/`. `npm run build` creates a clean unpacked extension in `dist/` and adds Monaco's local runtime assets; no remote scripts are used.
 

@@ -46,9 +46,18 @@ fs.writeFileSync(
   `window.MONACO_WORKERS = ${JSON.stringify(workerMap, null, 2)};\n`
 );
 
-const manifest = JSON.parse(fs.readFileSync(path.join(output, "manifest.json"), "utf8"));
+const manifestPath = path.join(output, "manifest.json");
+const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 if (!manifest.devtools_page || !fs.existsSync(path.join(output, manifest.devtools_page))) {
   throw new Error("built manifest points at a missing DevTools page");
+}
+
+// package.json is the single source of truth for the version; keep the
+// shipped manifest.json in sync with it so a version bump only needs to
+// happen in one place.
+if (manifest.version !== packageJson.version) {
+  manifest.version = packageJson.version;
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 }
 
 console.log(`Built extension ${manifest.version} in ${path.relative(root, output)}`);
