@@ -38,3 +38,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .vscode
 .temp
 old
+
+# packaged builds and signing key
+*.pem
+*.crx
+dist.zip
