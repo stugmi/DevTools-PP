@@ -71,6 +71,7 @@ function renderTree() {
     if (!model) continue;
     const count = getItemsInSection(section).length;
     if (showHeaders) renderSectionHeader(section, count);
+    if (showHeaders && collapsedSections.has(section)) continue;
     if (count === 0) {
       const empty = document.createElement("div");
       empty.className = "tree-section-empty";
@@ -85,6 +86,9 @@ function renderTree() {
   renderNetworkTable();
 }
 
+// Sections the user folded in the Explorer (session only).
+const collapsedSections = new Set();
+
 function renderSectionHeader(section, count) {
   const header = document.createElement("div");
   header.className = "tree-section-header";
@@ -95,15 +99,32 @@ function renderSectionHeader(section, count) {
       : section === "requests"
         ? "Requests"
         : "Deployed (raw)";
+  const collapsed = collapsedSections.has(section);
+  header.classList.toggle("collapsed", collapsed);
+  header.setAttribute("role", "button");
+  header.setAttribute("aria-expanded", String(!collapsed));
+  header.tabIndex = 0;
   header.innerHTML = `
+    <svg class="tree-section-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true"><path d="M2 1l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="tree-section-dot"></span>
     <span class="tree-section-label">${label}</span>
-    <span class="tree-section-actions">
-      <span class="tree-section-count">${count}</span>
-      <button class="tree-section-export" type="button" ${count ? "" : "disabled"}>
-        Export
-      </button>
-    </span>
+    <span class="tree-section-count">${count}</span>
+    <button class="tree-section-export btn btn-icon btn-ghost" type="button" title="Export ${label}" aria-label="Export ${label}" ${count ? "" : "disabled"}>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   `;
+  const toggle = () => {
+    if (collapsedSections.has(section)) collapsedSections.delete(section);
+    else collapsedSections.add(section);
+    renderTree();
+  };
+  header.addEventListener("click", toggle);
+  header.addEventListener("keydown", (event) => {
+    if (event.target === header && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      toggle();
+    }
+  });
   header.querySelector(".tree-section-export").addEventListener("click", (event) => {
     event.stopPropagation();
     exportItems(getItemsInSection(section), archiveNameForSection(section));

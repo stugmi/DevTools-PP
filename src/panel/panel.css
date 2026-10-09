@@ -289,7 +289,7 @@ body {
 #files-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0 8px;
   height: 30px;
   background: var(--bg-1);
@@ -303,30 +303,69 @@ body {
   justify-content: flex-end;
 }
 
-.capture-toggle {
-  gap: 5px;
+/* Toolbar toggles share one flat look: ghost buttons with a status dot. */
+.capture-toggle,
+.view-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font: 11px var(--font-ui);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
-.capture-toggle-dot {
+.capture-toggle:hover,
+.view-pill:hover {
+  color: var(--text-primary);
+  background: var(--bg-4);
+}
+
+.capture-toggle.active,
+.view-pill.active {
+  color: var(--text-primary);
+  background: var(--bg-3);
+  border-color: var(--border);
+}
+
+.capture-toggle-dot,
+.view-pill-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--text-dim);
 }
 
-.capture-toggle.active {
-  border-color: color-mix(in srgb, var(--green) 55%, var(--border));
-  color: var(--text-primary);
-}
-
 .capture-toggle.active .capture-toggle-dot {
   background: var(--green);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 20%, transparent);
+}
+
+.view-pill.active .view-pill-mapped {
+  background: var(--accent);
+}
+
+.view-pill.active .view-pill-raw {
+  background: var(--orange);
+}
+
+.view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
 }
 
 #filter-input {
   background: var(--bg-3);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border: 1px solid var(--border);
   border-radius: 3px;
   color: var(--text-primary);
   font-size: 11px;
@@ -345,57 +384,6 @@ body {
 
 #filter-input::placeholder {
   color: var(--text-dim);
-}
-
-.view-toggle {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.view-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--bg-3);
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  height: 22px;
-  padding: 0 9px;
-  font-size: 11px;
-  font-family: var(--font-ui);
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s,
-    border-color 0.12s;
-  user-select: none;
-}
-
-.view-pill:hover:not(.active) {
-  background: var(--bg-4);
-  color: var(--text-primary);
-}
-
-.view-pill.active {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.view-pill-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-dim);
-}
-
-.view-pill.active .view-pill-mapped {
-  background: var(--accent);
-}
-
-.view-pill.active .view-pill-raw {
-  background: var(--orange);
 }
 
 /* ── Network workspace filter bar (row 2) ─────────────────────────────────── */
@@ -494,67 +482,96 @@ body {
 .tree-section-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 10px 3px 10px;
-  margin-top: 4px;
-  font-size: 9.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-  border-top: 1px solid var(--border);
+  gap: 6px;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  color: var(--text-secondary);
   background: var(--bg-2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
   user-select: none;
 }
 
-.tree-section-header[data-section="mapped"] {
-  color: var(--accent);
-}
-
-.tree-section-header[data-section="raw"] {
-  color: var(--orange);
-}
-
-.tree-section-header[data-section="requests"] {
-  color: #a98bd6;
-}
-
 .tree-section-header:first-child {
-  border-top: none;
-  margin-top: 0;
+  border-top: 0;
 }
 
-.tree-section-count {
-  color: var(--text-dim);
-  font-weight: 400;
-}
-
-.tree-section-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.tree-section-export {
-  border: 0;
-  padding: 0;
-  color: var(--accent);
-  background: transparent;
-  font: inherit;
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.tree-section-export:hover {
+.tree-section-header:hover {
   color: var(--text-primary);
 }
 
+.tree-section-header:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.tree-section-chevron {
+  flex-shrink: 0;
+  transform: rotate(90deg);
+  transition: transform 80ms ease;
+}
+
+.tree-section-header.collapsed .tree-section-chevron {
+  transform: none;
+}
+
+.tree-section-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.tree-section-header[data-section="mapped"] .tree-section-dot {
+  background: var(--accent);
+}
+
+.tree-section-header[data-section="raw"] .tree-section-dot {
+  background: var(--orange);
+}
+
+.tree-section-header[data-section="requests"] .tree-section-dot {
+  background: #a98bd6;
+}
+
+.tree-section-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-section-count {
+  min-width: 18px;
+  margin-left: auto;
+  padding: 0 5px;
+  color: var(--text-secondary);
+  background: var(--bg-4);
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.tree-section-export {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.tree-section-header:hover .tree-section-export,
+.tree-section-export:focus-visible {
+  opacity: 1;
+}
+
 .tree-section-export:disabled {
-  color: var(--text-dim);
-  cursor: default;
-  opacity: 0.6;
+  opacity: 0 !important;
 }
 
 .tree-section-empty {
