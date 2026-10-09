@@ -140,6 +140,12 @@ function renderSectionHeader(section, count) {
       toggle();
     }
   });
+  header.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    state.contextTarget = { type: "section", path: "", section };
+    showContextMenu(event.clientX, event.clientY, "section");
+  });
   header.querySelector(".tree-section-export").addEventListener("click", (event) => {
     event.stopPropagation();
     exportItems(getItemsInSection(section), archiveNameForSection(section));
@@ -171,6 +177,27 @@ function dirHasMatch(dir, filter) {
     if (dirHasMatch(child, filter)) return true;
   }
   return false;
+}
+
+// Opens or closes every folder of `section` under `basePath` ("" = whole section).
+function setTreeFoldState(section, basePath, open) {
+  const tree = filteredTreeFor(section);
+  const prefix = basePath ? basePath + "/" : "";
+  for (const filePath of Object.keys(tree)) {
+    if (basePath && !filePath.startsWith(prefix)) continue;
+    const parts = filePath.split("/").filter(Boolean);
+    let dirPath = "";
+    for (const part of parts.slice(0, -1)) {
+      dirPath += (dirPath ? "/" : "") + part;
+      if (basePath && dirPath.length < basePath.length) continue;
+      const key = dirKey(section, dirPath);
+      userToggledDirs.add(key);
+      if (open) openDirs.add(key);
+      else openDirs.delete(key);
+    }
+  }
+  if (!basePath) collapsedSections.delete(section);
+  renderTree();
 }
 
 function dirKey(section, dirPath) {

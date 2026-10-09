@@ -174,12 +174,22 @@ window.PanelLayout = (() => {
     }
   }
 
+  // Search is reached from its activity-bar icon / Ctrl+Shift+H, so it never
+  // gets a tab of its own: an "Explorer | Search" strip next to a single real
+  // view is just clutter. Tabs only appear when two or more other views share
+  // a dock; Search then joins the strip so it can still be switched to there.
+  function tabbedIds(ids) {
+    const others = ids.filter((id) => id !== "search");
+    return others.length >= 2 ? ids : others;
+  }
+
   function renderTabs(dock, ids, active) {
     const strip = tabsEls[dock];
     strip.replaceChildren();
-    strip.hidden = ids.length < 2;
-    if (ids.length < 2) return;
-    for (const id of ids) {
+    const tabs = tabbedIds(ids);
+    strip.hidden = tabs.length < 2;
+    if (tabs.length < 2) return;
+    for (const id of tabs) {
       const tab = document.createElement("button");
       tab.type = "button";
       tab.className = "dock-tab";
@@ -205,7 +215,7 @@ window.PanelLayout = (() => {
       const active = activeIn(dock);
       const shown = dockShown(dock);
       renderTabs(dock, ids, active);
-      dockEl.classList.toggle("has-tabs", ids.length > 1);
+      dockEl.classList.toggle("has-tabs", tabbedIds(ids).length > 1);
       for (const id of VIEW_IDS) {
         if (layout.views[id].dock === dock) viewEls[id].hidden = !(shown && id === active);
       }

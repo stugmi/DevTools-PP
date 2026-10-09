@@ -1,14 +1,36 @@
 "use strict";
 
-function showContextMenu(x, y, targetType) {
-  el.contextMenu.style.display = "block";
-  el.ctxExportFile.style.display = targetType === "file" ? "block" : "none";
-  el.ctxExportDir.style.display = targetType === "dir" ? "block" : "none";
+// Which entries each kind of target shows. "Export all sources" is always last.
+const CONTEXT_MENU_ITEMS = {
+  file: ["ctxExportFile", "ctxCopyPath"],
+  dir: ["ctxExportDir", "ctxCollapseAll", "ctxExpandAll", "ctxCopyPath"],
+  section: ["ctxExportSection", "ctxCollapseAll", "ctxExpandAll"],
+};
 
-  const menuW = 180,
-    menuH = 90;
-  const safeX = Math.min(x, window.innerWidth - menuW - 4);
-  const safeY = Math.min(y, window.innerHeight - menuH - 4);
+function showContextMenu(x, y, targetType) {
+  const visible = new Set(CONTEXT_MENU_ITEMS[targetType] || []);
+  for (const key of [
+    "ctxExportFile",
+    "ctxExportDir",
+    "ctxExportSection",
+    "ctxCollapseAll",
+    "ctxExpandAll",
+    "ctxCopyPath",
+  ]) {
+    el[key].style.display = visible.has(key) ? "block" : "none";
+  }
+  const section = state.contextTarget?.section;
+  el.ctxExportSection.textContent =
+    section === "mapped"
+      ? "Export Authored"
+      : section === "requests"
+        ? "Export Requests"
+        : "Export Deployed";
+  el.ctxCopyPath.textContent = targetType === "dir" ? "Copy folder path" : "Copy file path";
+
+  el.contextMenu.style.display = "block";
+  const safeX = Math.max(4, Math.min(x, window.innerWidth - el.contextMenu.offsetWidth - 4));
+  const safeY = Math.max(4, Math.min(y, window.innerHeight - el.contextMenu.offsetHeight - 4));
   el.contextMenu.style.left = safeX + "px";
   el.contextMenu.style.top = safeY + "px";
 }
@@ -349,6 +371,37 @@ el.ctxExportDir.addEventListener("click", () => {
     const items = getItemsUnderDir(section, path);
     const label = path.split("/").pop() || getDomainLabel();
     exportItems(items, label);
+  }
+});
+
+el.ctxExportSection.addEventListener("click", () => {
+  hideContextMenu();
+  if (state.contextTarget && state.contextTarget.type === "section") {
+    const { section } = state.contextTarget;
+    exportItems(getItemsInSection(section), archiveNameForSection(section));
+  }
+});
+
+el.ctxCollapseAll.addEventListener("click", () => {
+  hideContextMenu();
+  const target = state.contextTarget;
+  if (target) setTreeFoldState(target.section, target.type === "dir" ? target.path : "", false);
+});
+
+el.ctxExpandAll.addEventListener("click", () => {
+  hideContextMenu();
+  const target = state.contextTarget;
+  if (target) setTreeFoldState(target.section, target.type === "dir" ? target.path : "", true);
+});
+
+el.ctxCopyPath.addEventListener("click", async () => {
+  hideContextMenu();
+  const target = state.contextTarget;
+  if (!target?.path) return;
+  try {
+    await navigator.clipboard.writeText(target.path);
+  } catch {
+    // clipboard unavailable in some DevTools contexts
   }
 });
 
