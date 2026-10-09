@@ -513,7 +513,8 @@ async function scanAll({ preserveExisting = state.collectAcrossNavigations } = {
 }
 
 function rebuild() {
-  state.treeModel = buildTreeModel(filteredTreeFor("mapped"));
+  // Authored files are grouped under the domain their source map was served from.
+  state.treeModel = buildTreeModel(filteredTreeFor("mapped"), { groupByDomain: true });
   state.rawTreeModel = buildTreeModel(filteredTreeFor("raw"));
   state.requestTreeModel = buildTreeModel(filteredTreeFor("requests"));
 

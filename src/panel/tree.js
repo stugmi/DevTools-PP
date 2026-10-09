@@ -2,19 +2,37 @@
 
 // ── Tree model ───────────────────────────────────────────────────────────────
 
-function buildTreeModel(flat) {
-  const root = { name: "", children: {}, files: {}, path: "" };
+// With `groupByDomain`, the first level is one virtual folder per domain
+// (like DevTools' Sources panel); real folder and file paths stay untouched, so
+// tabs, search and export keep working with the same keys.
+function buildTreeModel(flat, { groupByDomain = false } = {}) {
+  const root = { name: "", children: {}, files: {}, path: "", domain: "" };
 
   for (const [filePath, data] of Object.entries(flat)) {
     const parts = filePath.split("/").filter(Boolean);
     let node = root;
+    let domain = "";
+    if (groupByDomain) {
+      domain = domainOf(data);
+      if (!node.children[domain]) {
+        node.children[domain] = {
+          name: domain,
+          children: {},
+          files: {},
+          path: "",
+          domain,
+          isDomain: true,
+        };
+      }
+      node = node.children[domain];
+    }
     let currentPath = "";
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       currentPath += (currentPath ? "/" : "") + part;
       if (!node.children[part]) {
-        node.children[part] = { name: part, children: {}, files: {}, path: currentPath };
+        node.children[part] = { name: part, children: {}, files: {}, path: currentPath, domain };
       }
       node = node.children[part];
     }
@@ -40,11 +58,20 @@ function expandSingleChildChain(dir, section) {
   let node = dir;
   while (Object.keys(node.files).length === 0 && Object.values(node.children).length === 1) {
     const child = Object.values(node.children)[0];
-    const key = dirKey(section, child.path);
+    const key = dirKey(section, child.path, child.domain);
     if (userToggledDirs.has(key)) break;
     openDirs.add(key);
     node = child;
   }
+}
+
+// A site usually has exactly one authored domain: open it instead of making
+// the user click through a single-row level. Respects a manual collapse.
+function openLoneDomain(section, model) {
+  const domains = Object.values(model.children).filter((node) => node.isDomain);
+  if (domains.length !== 1) return;
+  const key = dirKey(section, "", domains[0].domain);
+  if (!userToggledDirs.has(key)) openDirs.add(key);
 }
 
 function renderTree() {
@@ -69,6 +96,7 @@ function renderTree() {
   for (const section of sections) {
     const model = modelFor(section);
     if (!model) continue;
+    openLoneDomain(section, model);
     const count = getItemsInSection(section).length;
     if (showHeaders) renderSectionHeader(section, count);
     if (showHeaders && collapsedSections.has(section)) continue;
@@ -179,29 +207,35 @@ function dirHasMatch(dir, filter) {
   return false;
 }
 
-// Opens or closes every folder of `section` under `basePath` ("" = whole section).
-function setTreeFoldState(section, basePath, open) {
+// Opens or closes every folder of `section` under `basePath` ("" = everything),
+// optionally limited to one `domain` (Authored is grouped by domain).
+function setTreeFoldState(section, basePath, open, domain) {
   const tree = filteredTreeFor(section);
   const prefix = basePath ? basePath + "/" : "";
-  for (const filePath of Object.keys(tree)) {
+  const grouped = section === "mapped";
+  const mark = (key) => {
+    userToggledDirs.add(key);
+    if (open) openDirs.add(key);
+    else openDirs.delete(key);
+  };
+  for (const [filePath, entry] of Object.entries(tree)) {
     if (basePath && !filePath.startsWith(prefix)) continue;
-    const parts = filePath.split("/").filter(Boolean);
+    const entryDomain = grouped ? domainOf(entry) : "";
+    if (domain && entryDomain !== domain) continue;
+    if (grouped && !basePath) mark(dirKey(section, "", entryDomain));
     let dirPath = "";
-    for (const part of parts.slice(0, -1)) {
+    for (const part of filePath.split("/").filter(Boolean).slice(0, -1)) {
       dirPath += (dirPath ? "/" : "") + part;
       if (basePath && dirPath.length < basePath.length) continue;
-      const key = dirKey(section, dirPath);
-      userToggledDirs.add(key);
-      if (open) openDirs.add(key);
-      else openDirs.delete(key);
+      mark(dirKey(section, dirPath, entryDomain));
     }
   }
-  if (!basePath) collapsedSections.delete(section);
+  if (!basePath && !domain) collapsedSections.delete(section);
   renderTree();
 }
 
-function dirKey(section, dirPath) {
-  return section + "::" + dirPath;
+function dirKey(section, dirPath, domain = "") {
+  return `${section}::${domain}::${dirPath}`;
 }
 
 function revealFileInTree(path, section) {
@@ -217,11 +251,19 @@ function revealFileInTree(path, section) {
   }
 
   const parts = path.split("/").filter(Boolean);
+  const domain = section === "mapped" ? domainOf(treeFor(section)[path]) : "";
   let dirPath = "";
   let expandedAncestor = false;
+  if (domain) {
+    const domainKey = dirKey(section, "", domain);
+    if (!openDirs.has(domainKey)) {
+      openDirs.add(domainKey);
+      expandedAncestor = true;
+    }
+  }
   for (const part of parts.slice(0, -1)) {
     dirPath += (dirPath ? "/" : "") + part;
-    const key = dirKey(section, dirPath);
+    const key = dirKey(section, dirPath, domain);
     if (!openDirs.has(key)) {
       openDirs.add(key);
       expandedAncestor = true;
@@ -239,7 +281,7 @@ function revealFileInTree(path, section) {
 }
 
 function renderDirNode(dir, container, depth, filter, section) {
-  const key = dirKey(section, dir.path);
+  const key = dirKey(section, dir.path, dir.domain);
   const isOpen = openDirs.has(key) || (filter && filter.length > 0);
   const childCount = countDescendants(dir);
 
@@ -249,6 +291,7 @@ function renderDirNode(dir, container, depth, filter, section) {
   row.dataset.path = dir.path;
   row.dataset.type = "dir";
   row.dataset.section = section;
+  if (dir.domain) row.dataset.domain = dir.domain;
 
   row.innerHTML = `
     <span class="node-toggle ${isOpen ? "open" : ""}">
@@ -288,7 +331,7 @@ function renderDirNode(dir, container, depth, filter, section) {
   row.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    state.contextTarget = { type: "dir", path: dir.path, section };
+    state.contextTarget = { type: "dir", path: dir.path, section, domain: dir.domain || undefined };
     showContextMenu(e.clientX, e.clientY, "dir");
   });
 

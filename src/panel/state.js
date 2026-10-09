@@ -245,6 +245,13 @@ function entryHost(entry) {
   return "";
 }
 
+const NO_DOMAIN = "(no domain)";
+
+// The site a captured file belongs to: where its script was served from.
+function domainOf(entry) {
+  return entryHost(entry) || NO_DOMAIN;
+}
+
 function normalizeDomain(value) {
   const candidate = value.trim().toLowerCase();
   if (!candidate) return "";

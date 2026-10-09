@@ -293,10 +293,15 @@ function archiveNameForSection(section) {
   return `${getDomainLabel()}-${suffix}`;
 }
 
-function getItemsUnderDir(section, dirPath) {
+function getItemsUnderDir(section, dirPath, domain) {
   const tree = treeFor(section);
   return Object.keys(tree)
-    .filter((p) => (p === dirPath || p.startsWith(dirPath + "/")) && locationFilterMatches(tree[p]))
+    .filter((p) => {
+      const entry = tree[p];
+      if (dirPath && p !== dirPath && !p.startsWith(dirPath + "/")) return false;
+      if (domain && domainOf(entry) !== domain) return false;
+      return locationFilterMatches(entry);
+    })
     .map((path) => ({ path, section }));
 }
 
@@ -367,9 +372,9 @@ el.ctxExportFile.addEventListener("click", () => {
 el.ctxExportDir.addEventListener("click", () => {
   hideContextMenu();
   if (state.contextTarget && state.contextTarget.type === "dir") {
-    const { path, section } = state.contextTarget;
-    const items = getItemsUnderDir(section, path);
-    const label = path.split("/").pop() || getDomainLabel();
+    const { path, section, domain } = state.contextTarget;
+    const items = getItemsUnderDir(section, path, domain);
+    const label = path.split("/").pop() || domain || getDomainLabel();
     exportItems(items, label);
   }
 });
@@ -382,24 +387,35 @@ el.ctxExportSection.addEventListener("click", () => {
   }
 });
 
+// A folder's subtree is its path (plus its domain, for grouped Authored files);
+// a section header means the whole section.
+function foldBase(target) {
+  return target.type === "dir" ? target.path : "";
+}
+
+function foldDomain(target) {
+  return target.type === "dir" ? target.domain : undefined;
+}
+
 el.ctxCollapseAll.addEventListener("click", () => {
   hideContextMenu();
   const target = state.contextTarget;
-  if (target) setTreeFoldState(target.section, target.type === "dir" ? target.path : "", false);
+  if (target) setTreeFoldState(target.section, foldBase(target), false, foldDomain(target));
 });
 
 el.ctxExpandAll.addEventListener("click", () => {
   hideContextMenu();
   const target = state.contextTarget;
-  if (target) setTreeFoldState(target.section, target.type === "dir" ? target.path : "", true);
+  if (target) setTreeFoldState(target.section, foldBase(target), true, foldDomain(target));
 });
 
 el.ctxCopyPath.addEventListener("click", async () => {
   hideContextMenu();
   const target = state.contextTarget;
-  if (!target?.path) return;
+  const text = target?.path || target?.domain;
+  if (!text) return;
   try {
-    await navigator.clipboard.writeText(target.path);
+    await navigator.clipboard.writeText(text);
   } catch {
     // clipboard unavailable in some DevTools contexts
   }
