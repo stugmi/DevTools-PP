@@ -16,6 +16,8 @@
   --bg-4: #37373d;
   --border: #333333;
   --border-active: #007acc;
+  --border-strong: #454545;
+  --on-accent: #ffffff;
   --text-primary: #cccccc;
   --text-secondary: #969696;
   --text-dim: #6e6e6e;
@@ -36,6 +38,7 @@
   --type-socket: #4ec9b0;
   --type-wasm: #c586c0;
   --type-other: #9cdcfe;
+  --kv-key: color-mix(in srgb, var(--text-primary) 72%, var(--text-secondary));
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Consolas", monospace;
 }
@@ -49,6 +52,8 @@
   --bg-4: #3c4043;
   --border: #3c4043;
   --border-active: #8ab4f8;
+  --border-strong: #5f6368;
+  --on-accent: #1f2024;
   --text-primary: #e8eaed;
   --text-secondary: #9aa0a6;
   --text-dim: #80868b;
@@ -80,6 +85,8 @@
   --bg-4: #2e3440;
   --border: #28313e;
   --border-active: #3d5a7a;
+  --border-strong: #34414f;
+  --on-accent: #ffffff;
   --text-primary: #e0e8f0;
   --text-secondary: #a8bccd;
   --text-dim: hsl(210 15% 40% / 1);
@@ -111,6 +118,8 @@
   --bg-4: #d4d4d4;
   --border: #e5e5e5;
   --border-active: #007acc;
+  --border-strong: #c8c8c8;
+  --on-accent: #ffffff;
   --text-primary: #333333;
   --text-secondary: #616161;
   --text-dim: #888888;
@@ -142,6 +151,8 @@
   --bg-4: #d0d7de;
   --border: #d0d7de;
   --border-active: #0969da;
+  --border-strong: #b6bec7;
+  --on-accent: #ffffff;
   --text-primary: #1f2328;
   --text-secondary: #656d76;
   --text-dim: #8c959f;
@@ -173,6 +184,8 @@
   --bg-4: #262626;
   --border: #6fc3df;
   --border-active: #f38518;
+  --border-strong: #6fc3df;
+  --on-accent: #000000;
   --text-primary: #ffffff;
   --text-secondary: #cccccc;
   --text-dim: #888888;
@@ -204,6 +217,8 @@
   --bg-4: #e0e0e0;
   --border: #0f4a85;
   --border-active: #0066bf;
+  --border-strong: #0f4a85;
+  --on-accent: #ffffff;
   --text-primary: #000000;
   --text-secondary: #222222;
   --text-dim: #555555;
@@ -622,7 +637,7 @@ body {
 .preview-tab.active {
   background: var(--bg-0);
   color: var(--text-primary);
-  border-color: var(--border-active);
+  border-color: var(--border-strong);
   top: 0;
 }
 
@@ -736,7 +751,7 @@ body {
 .btn:hover:not(:disabled) {
   background: var(--bg-4);
   color: var(--text-primary);
-  border-color: var(--border-active);
+  border-color: var(--border-strong);
 }
 
 .btn:disabled {
@@ -747,7 +762,7 @@ body {
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -1530,7 +1545,7 @@ body.resizing-row iframe {
   display: flex;
   flex-direction: column;
   background: var(--bg-1);
-  border: 1px solid var(--border-active);
+  border: 1px solid var(--border-strong);
   border-radius: 5px;
   box-shadow: 0 14px 45px rgba(0, 0, 0, 0.55);
   overflow: hidden;
@@ -1617,7 +1632,7 @@ kbd {
   padding: 1px 4px;
   color: var(--text-secondary);
   background: var(--bg-4);
-  border: 1px solid var(--border-active);
+  border: 1px solid var(--border-strong);
   border-radius: 2px;
   font-family: var(--font-mono);
   font-size: 8px;
@@ -1815,7 +1830,7 @@ kbd {
 #view-menu {
   position: fixed;
   background: var(--bg-2);
-  border: 1px solid var(--border-active);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   padding: 3px 0;
   z-index: 1000;
@@ -1856,7 +1871,7 @@ kbd {
 
 #progress-box {
   background: var(--bg-2);
-  border: 1px solid var(--border-active);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 20px 24px;
   width: 300px;
@@ -1900,10 +1915,9 @@ kbd {
   position: fixed;
   z-index: 1500;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(4, 8, 12, 0.55);
+  /* A floating window, not a modal: the page behind stays visible and
+     clickable so settings can be tried out live. */
+  pointer-events: none;
 }
 
 #editor-settings-modal[hidden],
@@ -1914,19 +1928,97 @@ kbd {
 }
 
 .es-box {
+  position: absolute;
   display: flex;
   flex-direction: column;
-  width: min(1040px, calc(100% - 32px));
-  height: min(760px, calc(100vh - 40px));
+  min-width: 520px;
+  min-height: 340px;
   overflow: hidden;
+  container-type: inline-size;
   color: var(--text-primary);
   background: var(--bg-1);
-  border: 1px solid var(--border-active);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+.es-box.dragging {
+  user-select: none;
+}
+
+.es-resize {
+  position: absolute;
+  z-index: 6;
+}
+
+.es-resize-n,
+.es-resize-s {
+  right: 10px;
+  left: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.es-resize-e,
+.es-resize-w {
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.es-resize-n {
+  top: 0;
+}
+
+.es-resize-s {
+  bottom: 0;
+}
+
+.es-resize-e {
+  right: 0;
+}
+
+.es-resize-w {
+  left: 0;
+}
+
+.es-resize-ne,
+.es-resize-nw,
+.es-resize-se,
+.es-resize-sw {
+  width: 12px;
+  height: 12px;
+}
+
+.es-resize-ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.es-resize-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.es-resize-se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+.es-resize-sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
 }
 
 .es-header {
+  cursor: grab;
+  user-select: none;
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -1940,6 +2032,7 @@ kbd {
 }
 
 #es-search {
+  cursor: text;
   flex: 1;
   max-width: 420px;
   padding: 5px 9px;
@@ -2199,7 +2292,7 @@ kbd {
   font-size: 10px;
 }
 
-@media (max-width: 720px) {
+@container (max-width: 680px) {
   .es-nav {
     display: none;
   }
@@ -2858,6 +2951,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 150px;
   height: 100%;
   padding: 0;
   border: 0;
@@ -2901,7 +2995,7 @@ kbd {
 
 .kv-row {
   display: grid;
-  grid-template-columns: calc(var(--kv-key-chars, 14) * 1ch + 10px) 12px minmax(0, 1fr);
+  grid-template-columns: calc(var(--kv-key-chars, 14) * 1ch + 2ch) minmax(0, 1fr);
   align-items: start;
   padding: 1px 10px 1px 22px;
 }
@@ -2911,15 +3005,15 @@ kbd {
 }
 
 .kv-key {
-  color: var(--text-primary);
-  font-weight: 700;
+  padding-right: 1ch;
+  color: var(--kv-key);
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
 .kv-colon {
-  padding-left: 1px;
   color: var(--text-dim);
-  opacity: 0.7;
+  font-weight: 400;
 }
 
 .kv-value {

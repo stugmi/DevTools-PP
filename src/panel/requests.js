@@ -467,12 +467,14 @@ function requestHeaderTable(rows) {
   for (const [name, value, options] of rows) {
     const row = document.createElement("div");
     row.className = "kv-row";
+    // The colon lives inside the key cell so it hugs the key text, while the
+    // values still line up in one column.
     const key = document.createElement("span");
     key.className = "kv-key";
-    key.textContent = name;
     const colon = document.createElement("span");
     colon.className = "kv-colon";
     colon.textContent = ":";
+    key.append(String(name), colon);
     const val = document.createElement("span");
     val.className = "kv-value";
     if (options && "status" in options) val.appendChild(statusDot(options.status));
@@ -483,7 +485,7 @@ function requestHeaderTable(rows) {
           ? value
           : JSON.stringify(value, null, 2)
     );
-    row.append(key, colon, val);
+    row.append(key, val);
     table.appendChild(row);
   }
   return table;

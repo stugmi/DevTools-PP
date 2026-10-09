@@ -545,6 +545,129 @@ window.EditorSettingsPanel = (() => {
     }
   }
 
+  // ── Floating window: drag by the header, resize from any edge ───────────
+  const WINDOW_KEY = "se.settingsWindow";
+  const MIN_WIDTH = 520;
+  const MIN_HEIGHT = 340;
+  const box = modal?.querySelector(".es-box");
+  let windowRect = null;
+
+  function defaultRect() {
+    const w = Math.min(1040, window.innerWidth - 32);
+    const h = Math.min(760, window.innerHeight - 40);
+    return {
+      x: Math.round((window.innerWidth - w) / 2),
+      y: Math.round((window.innerHeight - h) / 2),
+      w,
+      h,
+    };
+  }
+
+  // Keeps the window usable: never smaller than the minimum (or bigger than the
+  // viewport) and always with enough of the title bar on screen to grab.
+  function clampRect(rect) {
+    const w = Math.min(Math.max(rect.w, MIN_WIDTH), window.innerWidth);
+    const h = Math.min(Math.max(rect.h, MIN_HEIGHT), window.innerHeight);
+    const x = Math.min(Math.max(rect.x, 120 - w), window.innerWidth - 120);
+    const y = Math.min(Math.max(rect.y, 0), window.innerHeight - 36);
+    return { x, y, w, h };
+  }
+
+  function loadRect() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(WINDOW_KEY) || "null");
+      if (saved && ["x", "y", "w", "h"].every((key) => Number.isFinite(saved[key]))) return saved;
+    } catch {
+      // fall through to the default
+    }
+    return null;
+  }
+
+  function applyRect() {
+    if (!box) return;
+    windowRect = clampRect(windowRect || loadRect() || defaultRect());
+    box.style.left = `${windowRect.x}px`;
+    box.style.top = `${windowRect.y}px`;
+    box.style.width = `${windowRect.w}px`;
+    box.style.height = `${windowRect.h}px`;
+  }
+
+  function saveRect() {
+    try {
+      localStorage.setItem(WINDOW_KEY, JSON.stringify(windowRect));
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  // Runs `update(dx, dy)` for every move of a pointer gesture started on `handle`.
+  function trackPointer(handle, event, update) {
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    box.classList.add("dragging");
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const start = { ...windowRect };
+    const onMove = (moveEvent) => {
+      windowRect = clampRect(update(start, moveEvent.clientX - startX, moveEvent.clientY - startY));
+      applyRect();
+    };
+    const onUp = () => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+      box.classList.remove("dragging");
+      saveRect();
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+  }
+
+  function initWindow() {
+    if (!box) return;
+    const header = box.querySelector(".es-header");
+    header.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || event.target.closest("input, button, select, textarea")) return;
+      trackPointer(header, event, (start, dx, dy) => ({
+        ...start,
+        x: start.x + dx,
+        y: start.y + dy,
+      }));
+    });
+    header.addEventListener("dblclick", (event) => {
+      if (event.target.closest("input, button, select, textarea")) return;
+      windowRect = defaultRect();
+      applyRect();
+      saveRect();
+    });
+    for (const edge of ["n", "s", "e", "w", "ne", "nw", "se", "sw"]) {
+      const handle = document.createElement("div");
+      handle.className = `es-resize es-resize-${edge}`;
+      handle.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        trackPointer(handle, event, (start, dx, dy) => {
+          const next = { ...start };
+          if (edge.includes("e")) next.w = Math.max(MIN_WIDTH, start.w + dx);
+          if (edge.includes("s")) next.h = Math.max(MIN_HEIGHT, start.h + dy);
+          if (edge.includes("w")) {
+            next.w = Math.max(MIN_WIDTH, start.w - dx);
+            next.x = start.x + (start.w - next.w);
+          }
+          if (edge.includes("n")) {
+            next.h = Math.max(MIN_HEIGHT, start.h - dy);
+            next.y = start.y + (start.h - next.h);
+          }
+          return next;
+        });
+      });
+      box.appendChild(handle);
+    }
+    window.addEventListener("resize", () => {
+      if (isOpen()) applyRect();
+    });
+  }
+
   // ── Open / close ─────────────────────────────────────────────────────────
 
   function isOpen() {
@@ -556,6 +679,7 @@ window.EditorSettingsPanel = (() => {
     if (!modal) return;
     returnFocusTo = document.activeElement;
     modal.hidden = false;
+    applyRect();
     if (mode === "ui") renderBody();
     else syncJsonFromOverrides();
     if (section) document.getElementById(`es-sec-${slug(section)}`)?.scrollIntoView();
@@ -593,9 +717,7 @@ window.EditorSettingsPanel = (() => {
   resetAllBtn?.addEventListener("click", resetAll);
   closeBtn?.addEventListener("click", close);
   triggerBtn?.addEventListener("click", toggle);
-  modal?.addEventListener("mousedown", (event) => {
-    if (event.target === modal) close();
-  });
+  initWindow();
   document.addEventListener("keydown", (event) => {
     if (!isOpen() || event.key !== "Escape") return;
     event.preventDefault();
