@@ -11,109 +11,43 @@ window.SourceEditor = (() => {
   const DEFAULT_APPEARANCE = {
     fontFamily: "Cascadia Code, Consolas, monospace",
     fontSize: 12,
-    theme: "source-exporter",
-    smoothScrolling: true,
+    theme: "vs-dark",
+    smoothScrolling: false,
   };
 
-  // Themes selectable by the user. "source-exporter*" entries are custom
-  // themes defined below; the rest are Monaco's built-in themes.
-  const THEME_IDS = new Set([
-    "source-exporter",
-    "source-exporter-light",
-    "vs-dark",
-    "vs",
-    "hc-black",
-    "hc-light",
-  ]);
+  const THEME_IDS = window.MonacoLoader.THEME_IDS;
 
-  const ready = new Promise((resolve, reject) => {
-    if (typeof window.require !== "function") {
-      reject(new Error("Monaco loader unavailable"));
-      return;
-    }
-    window.require.config({ paths: { vs: "../vendor/monaco/vs" } });
-    window.require(
-      ["vs/editor/editor.main"],
-      () => {
-        const monaco = window.monaco;
-        const workerPaths = window.MONACO_WORKERS;
-        self.MonacoEnvironment ||= {};
-        self.MonacoEnvironment.getWorker = (_moduleId, label) => {
-          const kind =
-            label === "json"
-              ? "json"
-              : label === "css" || label === "scss" || label === "less"
-                ? "css"
-                : label === "html" || label === "handlebars" || label === "razor"
-                  ? "html"
-                  : label === "typescript" || label === "javascript"
-                    ? "typescript"
-                    : "editor";
-          return new Worker(new URL(workerPaths[kind], window.location.href), { name: label });
-        };
-        monaco.editor.defineTheme("source-exporter", {
-          base: "vs-dark",
-          inherit: true,
-          rules: [],
-          colors: {
-            "editor.background": "#0f1419",
-            "editor.foreground": "#c9d1d9",
-            "editorLineNumber.foreground": "#3f4b57",
-            "editorLineNumber.activeForeground": "#7aa0c4",
-            "editor.selectionBackground": "#264f78",
-            "editorWidget.background": "#171d23",
-            "editorWidget.border": "#33404d",
-          },
-        });
-        monaco.editor.defineTheme("source-exporter-light", {
-          base: "vs",
-          inherit: true,
-          rules: [],
-          colors: {
-            "editor.background": "#ffffff",
-            "editor.foreground": "#1f2328",
-            "editorLineNumber.foreground": "#8c959f",
-            "editorLineNumber.activeForeground": "#1a73a8",
-            "editor.selectionBackground": "#c8dffa",
-            "editorWidget.background": "#f6f8fa",
-            "editorWidget.border": "#d0d7de",
-          },
-        });
-        editor = monaco.editor.create(document.getElementById("editor-container"), {
-          theme: DEFAULT_APPEARANCE.theme,
-          automaticLayout: true,
-          fontFamily: DEFAULT_APPEARANCE.fontFamily,
-          fontSize: DEFAULT_APPEARANCE.fontSize,
-          lineHeight: 19,
-          minimap: { enabled: true },
-          wordWrap: "off",
-          scrollBeyondLastLine: false,
-          smoothScrolling: DEFAULT_APPEARANCE.smoothScrolling,
-          renderWhitespace: "selection",
-          bracketPairColorization: { enabled: true },
-          guides: { bracketPairs: true, indentation: true },
-          fixedOverflowWidgets: true,
-          // Large single-line JSON/JS payloads (e.g. hydration data inside a
-          // <script> tag) are common in captured sources. Monaco's defaults
-          // (10k render / 20k tokenize) silently drop syntax highlighting
-          // past those lengths for *any* language, so raise them well beyond
-          // typical embedded JSON blobs.
-          stopRenderingLineAfter: -1,
-          maxTokenizationLineLength: 200_000,
-        });
-        editor.onDidChangeModelContent(() => {
-          if (!suppressChanges && current && workspace) {
-            workspace.onChange(current, editor.getValue());
-          }
-        });
-        monaco.languages.typescript?.javascriptDefaults?.setEagerModelSync(true);
-        monaco.languages.typescript?.typescriptDefaults?.setEagerModelSync(true);
-        registerLanguageProviders(monaco);
-        registerNavigation(monaco);
-        resolve(editor);
-      },
-      reject
-    );
+  const ready = window.MonacoLoader.ready.then((monaco) => {
+    editor = monaco.editor.create(document.getElementById("editor-container"), {
+      theme: DEFAULT_APPEARANCE.theme,
+      automaticLayout: true,
+      fontFamily: DEFAULT_APPEARANCE.fontFamily,
+      fontSize: DEFAULT_APPEARANCE.fontSize,
+      lineHeight: 19,
+      minimap: { enabled: true },
+      wordWrap: "off",
+      scrollBeyondLastLine: false,
+      smoothScrolling: DEFAULT_APPEARANCE.smoothScrolling,
+      renderWhitespace: "selection",
+      bracketPairColorization: { enabled: true },
+      guides: { bracketPairs: true, indentation: true },
+      fixedOverflowWidgets: true,
+      // Large single-line JSON/JS payloads (e.g. hydration data inside a
+      // <script> tag) are common in captured sources. Monaco's defaults
+      // (10k render / 20k tokenize) silently drop syntax highlighting
+      // past those lengths for *any* language, so raise them well beyond
+      // typical embedded JSON blobs.
+      stopRenderingLineAfter: -1,
+      maxTokenizationLineLength: 200_000,
+    });
+    editor.onDidChangeModelContent(() => {
+      if (!suppressChanges && current && workspace) {
+        workspace.onChange(current, editor.getValue());
+      }
+    });
+    registerLanguageProviders(monaco);
+    registerNavigation(monaco);
+    return editor;
   });
 
   function configure(callbacks) {
@@ -178,6 +112,13 @@ window.SourceEditor = (() => {
     await ready;
     editor.focus();
     editor.getAction("actions.find").run();
+  }
+
+  async function getSelectedText() {
+    await ready;
+    const selection = editor.getSelection();
+    if (!selection || selection.isEmpty()) return "";
+    return editor.getModel()?.getValueInRange(selection) ?? "";
   }
 
   async function findReferences() {
@@ -393,6 +334,7 @@ window.SourceEditor = (() => {
     focusFind,
     findReferences,
     goToDefinition,
+    getSelectedText,
     toggleWrap,
     applyPreferences,
   };
