@@ -86,6 +86,18 @@ function renderTree() {
   renderNetworkTable();
 }
 
+const SECTION_ICONS = {
+  mapped:
+    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  raw: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.75l5.25 2.9v5.7L8 13.25 2.75 10.35v-5.7L8 1.75zM8 7.5l5.25-2.85M8 7.5v5.75M8 7.5L2.75 4.65" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>',
+  requests:
+    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 5.5h9m0 0L9.5 3M12 5.5L9.5 8M13 10.5H4m0 0L6.5 8M4 10.5L6.5 13" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+const FOLDER_ICON =
+  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 4.25c0-.55.45-1 1-1h3.1l1.4 1.5h6.5c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1h-11c-.55 0-1-.45-1-1v-6.5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>';
+const DOMAIN_ICON =
+  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 12.5a3 3 0 0 1-.4-5.97A4 4 0 0 1 11.9 6 3.25 3.25 0 0 1 11.5 12.5h-7z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>';
+
 // Sections the user folded in the Explorer (session only).
 const collapsedSections = new Set();
 
@@ -94,11 +106,14 @@ function renderSectionHeader(section, count) {
   header.className = "tree-section-header";
   header.dataset.section = section;
   const label =
+    section === "mapped" ? "Authored" : section === "requests" ? "Requests" : "Deployed";
+  const hint =
     section === "mapped"
       ? "Authored (source-mapped)"
       : section === "requests"
-        ? "Requests"
+        ? "Captured requests"
         : "Deployed (raw)";
+  header.title = hint;
   const collapsed = collapsedSections.has(section);
   header.classList.toggle("collapsed", collapsed);
   header.setAttribute("role", "button");
@@ -106,10 +121,10 @@ function renderSectionHeader(section, count) {
   header.tabIndex = 0;
   header.innerHTML = `
     <svg class="tree-section-chevron" width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true"><path d="M2 1l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span class="tree-section-dot"></span>
+    <span class="tree-section-icon">${SECTION_ICONS[section] || ""}</span>
     <span class="tree-section-label">${label}</span>
     <span class="tree-section-count">${count}</span>
-    <button class="tree-section-export btn btn-icon btn-ghost" type="button" title="Export ${label}" aria-label="Export ${label}" ${count ? "" : "disabled"}>
+    <button class="tree-section-export btn btn-icon btn-ghost" type="button" title="Export ${hint}" aria-label="Export ${hint}" ${count ? "" : "disabled"}>
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v8m0 0L5 7m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   `;
@@ -203,24 +218,18 @@ function renderDirNode(dir, container, depth, filter, section) {
 
   const row = document.createElement("div");
   row.className = "tree-node";
-  row.style.paddingLeft = `${4 + depth * 14}px`;
+  row.style.paddingLeft = `${8 + depth * 12}px`;
   row.dataset.path = dir.path;
   row.dataset.type = "dir";
   row.dataset.section = section;
 
   row.innerHTML = `
-    <span class="node-toggle ${isOpen ? "open" : ""}">    
+    <span class="node-toggle ${isOpen ? "open" : ""}">
       <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
         <path d="M2 1l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </span>
-    <span class="node-icon">
-      <svg width="18px" height="18px" viewBox="0 0 32 32" fill="none">
-        <g id="open-folder" stroke="none" stroke-width="0.5" fill="none" fill-rule="evenodd">
-            <path d="M25.0000062,26 L4,26 L8.86270857,13.0901619 L29.8196782,13.0901619 L25.0000062,26 Z M7.22746157,11.454917 L4,26 L4,5 L11.2725415,5 L14.500001,8.22745952 L25.0000062,8.22745952 L25.0000062,11.454917 L7.22746157,11.454917 Z" id="path92" fill="#3d5a7a" stroke="#5a80a0" fill-rule="nonzero"></path>
-        </g>
-    </svg>
-    </span>
+    <span class="node-icon node-icon-dir">${depth === 0 ? DOMAIN_ICON : FOLDER_ICON}</span>
     <span class="node-name dir-name">${highlightMatch(dir.name, filter)}</span>
     <span class="node-badge">${childCount}</span>
   `;
@@ -273,7 +282,7 @@ function renderFileNode(file, container, depth, filter, section) {
   if (isMissing) cls += " missing";
   const row = document.createElement("div");
   row.className = cls;
-  row.style.paddingLeft = `${4 + depth * 14 + 14}px`;
+  row.style.paddingLeft = `${8 + depth * 12 + 12}px`;
   row.dataset.path = file.path;
   row.dataset.type = "file";
   row.dataset.section = section;

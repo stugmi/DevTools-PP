@@ -190,6 +190,7 @@ window.PanelLayout = (() => {
       attachDragAndMenu(tab, id, () => activateView(id));
       strip.appendChild(tab);
     }
+    strip.appendChild(makeMenuButton(active));
   }
 
   function render() {
@@ -527,16 +528,7 @@ window.PanelLayout = (() => {
     if (layout) render();
   }
 
-  function decorateView(id) {
-    const viewEl = viewEls[id];
-    const header = viewEl.querySelector(".view-header");
-    if (!header) return;
-    let actions = header.querySelector(".view-header-actions");
-    if (!actions) {
-      actions = document.createElement("span");
-      actions.className = "view-header-actions";
-      header.appendChild(actions);
-    }
+  function makeMenuButton(id) {
     const menuButton = document.createElement("button");
     menuButton.type = "button";
     menuButton.className = "btn btn-icon btn-ghost view-menu-btn";
@@ -548,7 +540,20 @@ window.PanelLayout = (() => {
       const rect = menuButton.getBoundingClientRect();
       openViewMenu(id, rect.left, rect.bottom + 2);
     });
-    actions.appendChild(menuButton);
+    return menuButton;
+  }
+
+  function decorateView(id) {
+    const viewEl = viewEls[id];
+    const header = viewEl.querySelector(".view-header");
+    if (!header) return;
+    let actions = header.querySelector(".view-header-actions");
+    if (!actions) {
+      actions = document.createElement("span");
+      actions.className = "view-header-actions";
+      header.appendChild(actions);
+    }
+    actions.appendChild(makeMenuButton(id));
     header.title = "Drag to move this view to another area";
     attachDragAndMenu(header, id);
   }
