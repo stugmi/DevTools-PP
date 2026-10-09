@@ -459,11 +459,22 @@ function generalRows(entry) {
 
 // A DevTools-style key/value table. Keys are bold and bright, the colon is
 // dimmed, values are plain; values always wrap.
-function requestHeaderTable(rows) {
+const KV_KEY_MAX_CHARS = 33;
+
+// Width (in characters) of the key column needed for these rows. Pass the
+// result of `sharedKeyChars()` as `keyChars` to give several tables one column.
+function sharedKeyChars(...rowLists) {
+  let longest = 0;
+  for (const rows of rowLists) {
+    for (const [name] of rows) longest = Math.max(longest, String(name).length);
+  }
+  return Math.min(Math.max(longest, 6), KV_KEY_MAX_CHARS);
+}
+
+function requestHeaderTable(rows, keyChars = sharedKeyChars(rows)) {
   const table = document.createElement("div");
   table.className = "kv-table";
-  const longest = rows.reduce((max, [name]) => Math.max(max, String(name).length), 0);
-  table.style.setProperty("--kv-key-chars", String(Math.min(Math.max(longest, 6), 32)));
+  table.style.setProperty("--kv-key-chars", String(keyChars));
   for (const [name, value, options] of rows) {
     const row = document.createElement("div");
     row.className = "kv-row";
@@ -492,7 +503,7 @@ function requestHeaderTable(rows) {
 }
 
 // Collapsible section with an optional "Raw" checkbox in its header.
-function requestDetailSection(title, content, { rawKey = null } = {}) {
+function requestDetailSection(title, content, { rawKey = null, actions = null } = {}) {
   const section = document.createElement("section");
   section.className = "request-detail-section";
   const collapsed = collapsedDetailSections().has(title);
@@ -535,6 +546,11 @@ function requestDetailSection(title, content, { rawKey = null } = {}) {
     heading.appendChild(label);
   }
 
+  if (actions) {
+    actions.classList.add("request-detail-section-actions");
+    heading.appendChild(actions);
+  }
+
   const body = document.createElement("div");
   body.className = "request-detail-section-body";
   body.appendChild(content);
@@ -548,7 +564,13 @@ function renderHeadersPanel(entry) {
   panel.replaceChildren();
   const { request, response } = entry._record;
 
-  panel.appendChild(requestDetailSection("General", requestHeaderTable(generalRows(entry))));
+  // One key column shared by every table, so values line up from General
+  // through Response headers to Request headers.
+  const general = generalRows(entry);
+  const toRows = (headers) => headers.map(({ name, value }) => [name, value]);
+  const keyChars = sharedKeyChars(general, toRows(response.headers), toRows(request.headers));
+
+  panel.appendChild(requestDetailSection("General", requestHeaderTable(general, keyChars)));
 
   const responseStart =
     `${response.httpVersion || ""} ${response.status ?? ""} ${response.statusText || ""}`.trim();
@@ -562,80 +584,11 @@ function renderHeadersPanel(entry) {
     if (state.requestRawSections[rawKey]) {
       content = requestDetailPre(headersText || rawHeaders(startLine, headers), true);
     } else if (headers.length) {
-      content = requestHeaderTable(headers.map(({ name, value }) => [name, value]));
+      content = requestHeaderTable(toRows(headers), keyChars);
     } else {
       content = requestDetailEmpty(`No ${title.toLowerCase()}`);
     }
     panel.appendChild(requestDetailSection(title, content, { rawKey }));
-  }
-}
-
-// ── Cookies tab ──────────────────────────────────────────────────────────────
-
-function cookieTable(cookies) {
-  const table = document.createElement("div");
-  table.className = "cookie-table";
-  const head = document.createElement("div");
-  head.className = "cookie-row cookie-head";
-  // The two flag columns are narrow, so they get a one-letter heading with the
-  // full name in the tooltip.
-  const columns = [
-    ["Name", "Name"],
-    ["Value", "Value"],
-    ["Path", "Path"],
-    ["Domain", "Domain"],
-    ["Expires", "Expires"],
-    ["H", "HttpOnly"],
-    ["S", "Secure"],
-    ["SameSite", "SameSite"],
-  ];
-  for (const [label, title] of columns) {
-    const cell = document.createElement("span");
-    cell.textContent = label;
-    cell.title = title;
-    head.appendChild(cell);
-  }
-  table.appendChild(head);
-  for (const cookie of cookies) {
-    const row = document.createElement("div");
-    row.className = "cookie-row";
-    const cells = [
-      cookie.name,
-      cookie.value,
-      cookie.path,
-      cookie.domain,
-      cookie.expires,
-      cookie.httpOnly ? "✓" : "",
-      cookie.secure ? "✓" : "",
-      cookie.sameSite,
-    ];
-    cells.forEach((value, index) => {
-      const cell = document.createElement("span");
-      cell.className = index === 0 ? "cookie-name" : "";
-      cell.textContent = value == null ? "" : String(value);
-      cell.title = cell.textContent;
-      row.appendChild(cell);
-    });
-    table.appendChild(row);
-  }
-  return table;
-}
-
-function requestCookies(entry) {
-  const { request, response } = entry._record;
-  return { request: request.cookies || [], response: response.cookies || [] };
-}
-
-function renderCookiesPanel(entry) {
-  const panel = requestDetailPanel("cookies");
-  if (!panel) return;
-  panel.replaceChildren();
-  const cookies = requestCookies(entry);
-  if (cookies.request.length) {
-    panel.appendChild(requestDetailSection("Request cookies", cookieTable(cookies.request)));
-  }
-  if (cookies.response.length) {
-    panel.appendChild(requestDetailSection("Response cookies", cookieTable(cookies.response)));
   }
 }
 

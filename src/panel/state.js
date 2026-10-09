@@ -95,6 +95,8 @@ const state = {
   // Per-section "Raw" checkboxes on the Headers tab (DevTools style).
   requestRawSections: { response: false, request: false },
   requestDetailFormat: prefs.formatBodies,
+  // Format used by the Cookies tab Copy / Save buttons.
+  cookieFormat: "json",
   locationFilter: {
     mode: "all",
     value: "",

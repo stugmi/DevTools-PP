@@ -107,6 +107,7 @@
   --type-socket: #4ec4a8;
   --type-wasm: #a878e0;
   --type-other: #c47a5a;
+  --kv-key: color-mix(in srgb, var(--text-primary) 36%, var(--text-secondary));
 }
 
 :root[data-theme="vs"] {
@@ -2995,7 +2996,8 @@ kbd {
 
 .kv-row {
   display: grid;
-  grid-template-columns: calc(var(--kv-key-chars, 14) * 1ch + 2ch) minmax(0, 1fr);
+  grid-template-columns: calc(var(--kv-key-chars, 14) * 1ch + 1ch) minmax(0, 1fr);
+  column-gap: 2.5ch;
   align-items: start;
   padding: 1px 10px 1px 22px;
 }
@@ -3005,7 +3007,6 @@ kbd {
 }
 
 .kv-key {
-  padding-right: 1ch;
   color: var(--kv-key);
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -3074,8 +3075,42 @@ kbd {
 }
 
 .cookie-row .cookie-name {
+  color: var(--kv-key);
+  font-weight: 600;
+}
+
+.cookie-data:hover {
+  background: var(--bg-3);
+}
+
+.cookie-data.modified {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.cookie-data .cookie-cell {
+  cursor: default;
+}
+
+.cookie-data .cookie-flag {
+  cursor: pointer;
+  text-align: center;
+}
+
+.cookie-data > span.editing {
+  overflow: visible;
+}
+
+.cookie-edit {
+  width: 100%;
+  min-width: 0;
+  height: 18px;
+  padding: 0 3px;
   color: var(--text-primary);
-  font-weight: 700;
+  background: var(--bg-0);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  font: inherit;
+  outline: none;
 }
 
 .cookie-head {
@@ -3289,4 +3324,28 @@ kbd {
 
 #request-payload-meta:empty {
   display: none;
+}
+
+/* Cookie section header: format picker + Copy / Save / Reset */
+.request-detail-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.cookie-actions .cookie-format {
+  height: 20px;
+  padding: 0 4px;
+  color: var(--text-secondary);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font: 11px var(--font-ui);
+}
+
+.cookie-actions .cookie-action {
+  height: 20px;
+  padding: 0 7px;
+  font-size: 11px;
 }
