@@ -150,11 +150,6 @@ el.requestDetailTabs.addEventListener("click", (event) => {
   state.requestDetailTab = button.dataset.requestTab;
   showSelectedRequestTab();
 });
-el.requestRawToggle.addEventListener("change", () => {
-  state.requestDetailRaw = el.requestRawToggle.checked;
-  showSelectedRequestTab();
-});
-
 el.btnExportAll.addEventListener("click", () => {
   exportItems(getAllItems(), getDomainLabel());
 });

@@ -527,25 +527,12 @@
                     <button type="button" data-request-tab="headers" class="active">Headers</button>
                     <button type="button" data-request-tab="payload">Payload</button>
                     <button type="button" data-request-tab="response">Response</button>
+                    <button type="button" data-request-tab="cookies">Cookies</button>
                     <button type="button" data-request-tab="timing">Timing</button>
                   </nav>
-                  <div class="request-detail-toolbar-actions">
-                    <div id="request-body-view-toggle" class="request-body-view-toggle" hidden>
-                      <button type="button" data-body-view="source" class="active">Source</button>
-                      <button type="button" data-body-view="parsed">Parsed</button>
-                    </div>
-                    <label class="request-format-toggle" title="Pretty-print bodies (Ctrl+Shift+F)">
-                      <input id="request-format-toggle" type="checkbox" />
-                      <span>Format</span>
-                    </label>
-                    <label class="request-wrap-toggle">
-                      <input id="request-wrap-toggle" type="checkbox" />
-                      <span>Wrap</span>
-                    </label>
-                    <label class="request-raw-toggle">
-                      <input id="request-raw-toggle" type="checkbox" />
-                      <span>Raw</span>
-                    </label>
+                  <div id="request-body-view-toggle" class="request-body-view-toggle" hidden>
+                    <button type="button" data-body-view="source" class="active">Source</button>
+                    <button type="button" data-body-view="parsed">Parsed</button>
                   </div>
                 </div>
                 <div id="request-detail-body">
@@ -573,6 +560,7 @@
                       hidden
                     ></iframe>
                   </div>
+                  <div id="request-detail-panel-cookies" class="request-detail-panel" hidden></div>
                   <div id="request-detail-panel-timing" class="request-detail-panel" hidden></div>
                 </div>
               </section>
@@ -606,6 +594,54 @@
                   </svg>
                 </button>
                 <span id="preview-lang-badge"></span>
+                <button
+                  id="btn-request-format"
+                  class="footer-pretty-btn footer-request-btn"
+                  type="button"
+                  title="Format body (Ctrl+Shift+F)"
+                  aria-label="Format body"
+                  hidden
+                >
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                    <path
+                      d="M2 3.5h9M2 6.5h6M2 9.5h9"
+                      stroke="currentColor"
+                      stroke-width="1.15"
+                      stroke-linecap="round"
+                    />
+                    <path
+                      d="M9.5 5.2l1.3 1.3-1.3 1.3"
+                      stroke="currentColor"
+                      stroke-width="1.05"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <button
+                  id="btn-request-wrap"
+                  class="footer-pretty-btn footer-request-btn"
+                  type="button"
+                  title="Toggle word wrap"
+                  aria-label="Toggle word wrap"
+                  hidden
+                >
+                  <svg width="13" height="13" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+                    <path
+                      d="M1 2h9M1 5h6a2 2 0 0 1 0 4H5"
+                      stroke="currentColor"
+                      stroke-width="1.1"
+                      stroke-linecap="round"
+                    />
+                    <path
+                      d="M3 7l-2 2 2 2"
+                      stroke="currentColor"
+                      stroke-width="1.1"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
                 <span id="preview-meta"></span>
               </div>
               <div id="preview-footer-right">

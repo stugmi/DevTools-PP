@@ -87,7 +87,8 @@ const state = {
   },
   requestSort: { key: null, dir: "asc" },
   requestDetailTab: "headers",
-  requestDetailRaw: false,
+  // Per-section "Raw" checkboxes on the Headers tab (DevTools style).
+  requestRawSections: { response: false, request: false },
   requestDetailFormat: prefs.formatBodies,
   locationFilter: {
     mode: "all",
@@ -139,7 +140,6 @@ const el = {
   btnSearchCollapse: $("btn-search-collapse"),
   statusFilter: $("status-filter"),
   viewMenu: $("view-menu"),
-  requestFormatToggle: $("request-format-toggle"),
   previewActions: $("preview-actions"),
   emptyState: $("empty-state"),
   treeRoot: $("tree-root"),
@@ -172,7 +172,8 @@ const el = {
   requestDetail: $("request-detail"),
   requestSummary: $("request-summary"),
   requestDetailTabs: $("request-detail-tabs"),
-  requestRawToggle: $("request-raw-toggle"),
+  btnRequestFormat: $("btn-request-format"),
+  btnRequestWrap: $("btn-request-wrap"),
   requestDetailBody: $("request-detail-body"),
   previewFooter: $("preview-footer"),
   previewMeta: $("preview-meta"),

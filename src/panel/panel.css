@@ -2599,9 +2599,9 @@ kbd {
 
 .request-detail-toolbar {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  min-height: 31px;
+  min-height: 30px;
   padding: 0 10px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-1);
@@ -2610,16 +2610,21 @@ kbd {
 #request-detail-tabs {
   display: flex;
   align-self: stretch;
-  gap: 12px;
+  gap: 2px;
 }
 
 #request-detail-tabs button {
   position: relative;
+  padding: 0 10px;
   border: 0;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-secondary);
   cursor: pointer;
-  font: 10.5px var(--font-ui);
+  font: 11.5px var(--font-ui);
+}
+
+#request-detail-tabs button[hidden] {
+  display: none;
 }
 
 #request-detail-tabs button:hover,
@@ -2629,23 +2634,19 @@ kbd {
 
 #request-detail-tabs button.active::after {
   position: absolute;
-  right: 0;
+  right: 6px;
   bottom: 0;
-  left: 0;
+  left: 6px;
   height: 2px;
-  background: #a98bd6;
+  background: var(--accent);
   content: "";
-}
-
-.request-detail-toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
 }
 
 .request-body-view-toggle {
   display: flex;
+  align-items: center;
   gap: 2px;
+  align-self: center;
 }
 
 .request-body-view-toggle[hidden] {
@@ -2654,30 +2655,24 @@ kbd {
 
 .request-body-view-toggle button {
   height: 20px;
-  padding: 0 7px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--bg-3);
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
   color: var(--text-dim);
   cursor: pointer;
-  font: 9px var(--font-ui);
+  font: 11px var(--font-ui);
+}
+
+.request-body-view-toggle button:hover {
+  color: var(--text-primary);
+  background: var(--bg-4);
 }
 
 .request-body-view-toggle button.active {
-  border-color: #8467ae;
-  background: color-mix(in srgb, #8467ae 25%, var(--bg-3));
-  color: #cbb8e9;
-}
-
-.request-format-toggle,
-.request-wrap-toggle,
-.request-raw-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-dim);
-  cursor: pointer;
-  font-size: 10px;
+  border-color: var(--border);
+  background: var(--bg-3);
+  color: var(--text-primary);
 }
 
 #request-detail-body {
@@ -2690,7 +2685,6 @@ kbd {
 .request-detail-panel {
   flex: 1;
   overflow: auto;
-  padding: 10px;
   min-height: 0;
 }
 
@@ -2702,7 +2696,7 @@ kbd {
 #request-detail-panel-response:not([hidden]) {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  overflow: hidden;
 }
 
 .request-viewer-label {
@@ -2719,9 +2713,7 @@ kbd {
 
 .request-viewer-host {
   flex: 1;
-  min-height: 220px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
+  min-height: 120px;
   overflow: hidden;
 }
 
@@ -2731,9 +2723,8 @@ kbd {
 
 .request-preview-frame {
   flex: 1;
-  min-height: 220px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
+  min-height: 120px;
+  border: 0;
   background: #fff;
 }
 
@@ -2743,9 +2734,7 @@ kbd {
 
 .json-tree-host {
   flex: 1;
-  min-height: 220px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
+  min-height: 120px;
   overflow: auto;
   padding: 8px 6px;
   background: var(--bg-0);
@@ -2850,39 +2839,36 @@ kbd {
   font-style: italic;
 }
 
+/* ── Headers tab: DevTools-style sections and key/value rows ─────────────── */
 .request-detail-section {
-  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
 }
 
-.request-detail-section h3 {
+.request-detail-section-head {
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-bottom: 5px;
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
+  gap: 16px;
+  height: 26px;
+  padding: 0 10px 0 6px;
+  background: var(--bg-1);
   user-select: none;
 }
 
 .request-detail-section-toggle {
   display: flex;
-  flex-shrink: 0;
   align-items: center;
-  justify-content: center;
-  width: 12px;
-  height: 12px;
+  gap: 6px;
+  height: 100%;
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-primary);
   cursor: pointer;
+  font: 600 11.5px var(--font-ui);
 }
 
 .request-detail-section-toggle svg {
+  color: var(--text-dim);
   transition: transform 0.1s;
 }
 
@@ -2894,73 +2880,121 @@ kbd {
   display: none;
 }
 
-.request-kv {
-  width: 100%;
-  border-collapse: collapse;
-  font: 10.5px/1.5 var(--font-mono);
-  table-layout: fixed;
-}
-
-.request-kv th,
-.request-kv td {
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  text-align: left;
-  vertical-align: top;
-}
-
-.request-kv th {
-  width: 180px;
-  padding: 3px 6px;
+.request-raw-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--text-secondary);
-  font-weight: 400;
+  cursor: pointer;
+  font: 11px var(--font-ui);
+}
+
+.request-raw-check input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.kv-table {
+  padding: 2px 0 6px;
+  font: 11px/1.55 var(--font-mono);
+}
+
+.kv-row {
+  display: grid;
+  grid-template-columns: calc(var(--kv-key-chars, 14) * 1ch + 10px) 12px minmax(0, 1fr);
+  align-items: start;
+  padding: 1px 10px 1px 22px;
+}
+
+.kv-row:hover {
+  background: var(--bg-3);
+}
+
+.kv-key {
+  color: var(--text-primary);
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 
-.request-kv td {
-  padding: 0;
-  color: var(--text-primary);
+.kv-colon {
+  padding-left: 1px;
+  color: var(--text-dim);
+  opacity: 0.7;
 }
 
-.request-kv-value {
-  padding: 3px 6px;
-  overflow-x: auto;
+.kv-value {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.request-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  vertical-align: middle;
+}
+
+.request-status-dot.error {
+  background: var(--red);
+}
+
+.request-raw {
+  margin: 0;
+  padding: 6px 10px 8px 22px;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font: 11px/1.55 var(--font-mono);
+  white-space: pre-wrap;
+}
+
+.request-empty {
+  padding: 8px 22px 10px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* Cookies tab */
+.cookie-table {
+  font: 11px/1.5 var(--font-mono);
+}
+
+.cookie-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.1fr) minmax(0, 2.2fr) minmax(0, 0.6fr) minmax(0, 1.2fr) minmax(0, 1.3fr)
+    24px 24px 56px;
+  gap: 10px;
+  padding: 2px 10px 2px 22px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.cookie-row > span {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-#request-detail-body.wrap .request-kv-value {
-  overflow-x: visible;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.request-raw,
-.request-body-content,
-.request-empty {
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  background: var(--bg-1);
-}
-
-.request-raw,
-.request-body-content {
-  overflow: auto;
-  padding: 9px;
+.cookie-row .cookie-name {
   color: var(--text-primary);
-  font: 10.5px/1.55 var(--font-mono);
-  tab-size: 2;
-  white-space: pre;
+  font-weight: 700;
 }
 
-#request-detail-body.wrap .request-raw,
-#request-detail-body.wrap .request-body-content {
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
+.cookie-head {
+  position: sticky;
+  top: 0;
+  background: var(--bg-1);
+  border-top: 0;
+  border-bottom: 1px solid var(--border);
 }
 
-.request-empty {
-  padding: 12px;
-  color: var(--text-dim);
-  font-size: 10.5px;
+.cookie-head > span {
+  color: var(--text-primary);
+  font: 600 11px var(--font-ui);
 }
 
 #preview-actions.request-actions #btn-find-file,
@@ -3147,5 +3181,18 @@ kbd {
 
 /* Section headers already carry the counts. */
 #file-count {
+  display: none;
+}
+
+/* Request body controls (Format / Wrap) live in the footer with the editor's. */
+.footer-request-btn[hidden] {
+  display: none;
+}
+
+#request-payload-meta {
+  padding: 0;
+}
+
+#request-payload-meta:empty {
   display: none;
 }

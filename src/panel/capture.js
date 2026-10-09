@@ -143,6 +143,19 @@ function headersFromHAR(headers) {
   return (headers || []).map(({ name, value }) => ({ name, value }));
 }
 
+function cookiesFromHAR(cookies) {
+  return (cookies || []).map((cookie) => ({
+    name: cookie.name,
+    value: cookie.value,
+    path: cookie.path || "",
+    domain: cookie.domain || "",
+    expires: cookie.expires || "",
+    httpOnly: Boolean(cookie.httpOnly),
+    secure: Boolean(cookie.secure),
+    sameSite: cookie.sameSite || "",
+  }));
+}
+
 function paramsToObject(params) {
   const body = {};
   for (const param of params || []) {
@@ -391,7 +404,7 @@ function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) 
       headers: headersFromHAR(request.headers),
       headersText: request.headersText || null,
       queryParams: headersFromHAR(request.queryString),
-      cookies: headersFromHAR(request.cookies),
+      cookies: cookiesFromHAR(request.cookies),
       bodySize: request.bodySize ?? null,
       bodyMimeType: requestContentType,
       ...(requestBody === undefined ? {} : { body: requestBody }),
@@ -401,9 +414,10 @@ function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) 
       statusText: entry.response?.statusText || "",
       httpVersion: entry.response?.httpVersion || null,
       headers: headersFromHAR(entry.response?.headers),
-      cookies: headersFromHAR(entry.response?.cookies),
+      cookies: cookiesFromHAR(entry.response?.cookies),
       headersText: entry.response?.headersText || null,
       redirectURL: entry.response?.redirectURL || null,
+      remoteAddress: entry.serverIPAddress || null,
       bodySize: entry.response?.bodySize ?? null,
       contentSize: entry.response?.content?.size ?? null,
       bodyMimeType: responseContentType,

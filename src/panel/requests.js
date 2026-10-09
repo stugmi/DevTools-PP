@@ -206,66 +206,11 @@ function detailText(className, value, title = "") {
   return node;
 }
 
-function requestDetailTable(rows) {
-  const table = document.createElement("table");
-  table.className = "request-kv";
-  for (const [name, value, valueClassName] of rows) {
-    const tr = document.createElement("tr");
-    const th = document.createElement("th");
-    const td = document.createElement("td");
-    th.textContent = name;
-    const valueWrap = document.createElement("div");
-    valueWrap.className = valueClassName
-      ? `request-kv-value ${valueClassName}`
-      : "request-kv-value";
-    valueWrap.textContent =
-      value == null ? "—" : typeof value === "string" ? value : JSON.stringify(value, null, 2);
-    td.appendChild(valueWrap);
-    tr.append(th, td);
-    table.appendChild(tr);
-  }
-  return table;
-}
-
 // Collapsed-section state is shared across every request (like
 // state.requestDetailTab already is) rather than pre-declared on `state` in
 // state.js, since this file doesn't own that object's literal.
 function collapsedDetailSections() {
   return (state.collapsedDetailSections ??= new Set());
-}
-
-function requestDetailSection(title, content) {
-  const section = document.createElement("section");
-  section.className = "request-detail-section";
-  const collapsed = collapsedDetailSections().has(title);
-  section.classList.toggle("collapsed", collapsed);
-
-  const heading = document.createElement("h3");
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "request-detail-section-toggle";
-  toggle.setAttribute("aria-expanded", String(!collapsed));
-  toggle.innerHTML =
-    '<svg width="8" height="8" viewBox="0 0 8 8" fill="none">' +
-    '<path d="M2 1l4 3-4 3" stroke="currentColor" stroke-width="1.3"' +
-    ' stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const label = document.createElement("span");
-  label.textContent = title;
-  heading.append(toggle, label);
-  heading.addEventListener("click", () => {
-    const sections = collapsedDetailSections();
-    if (sections.has(title)) sections.delete(title);
-    else sections.add(title);
-    const nowCollapsed = sections.has(title);
-    section.classList.toggle("collapsed", nowCollapsed);
-    toggle.setAttribute("aria-expanded", String(!nowCollapsed));
-  });
-
-  const body = document.createElement("div");
-  body.className = "request-detail-section-body";
-  body.appendChild(content);
-  section.append(heading, body);
-  return section;
 }
 
 function requestDetailPre(value, raw = false) {
@@ -333,7 +278,6 @@ function formatBodyText(text, lang, mime) {
 
 function setRequestFormat(enabled) {
   state.requestDetailFormat = Boolean(enabled);
-  if (el.requestFormatToggle) el.requestFormatToggle.checked = state.requestDetailFormat;
   showSelectedRequestTab();
 }
 
@@ -487,82 +431,228 @@ function updateBodyViewToggle(entry) {
   buttons[1].classList.toggle("active", parsedActive);
 }
 
-function renderHeadersPanel(entry, raw) {
+// ── Headers tab (modelled on Chrome DevTools) ───────────────────────────────
+
+function statusDot(status) {
+  const dot = document.createElement("span");
+  dot.className = `request-status-dot${Number(status) >= 400 ? " error" : ""}`;
+  return dot;
+}
+
+// General: only rows that carry information. Method/URL are already in the
+// summary bar above the tabs, so they are not repeated, and empty values
+// (redirect URL, HTTP version, ...) are dropped rather than shown as a dash.
+function generalRows(entry) {
+  const record = entry._record;
+  const { request, response } = record;
+  const rows = [];
+  rows.push(["Request URL", request.url]);
+  rows.push(["Request Method", request.method]);
+  const status = `${response.status ?? "—"} ${response.statusText || ""}`.trim();
+  rows.push(["Status Code", status, { status: response.status }]);
+  if (response.remoteAddress) rows.push(["Remote Address", response.remoteAddress]);
+  const policy = response.headers.find((h) => h.name.toLowerCase() === "referrer-policy");
+  if (policy) rows.push(["Referrer Policy", policy.value]);
+  if (response.redirectURL) rows.push(["Redirect URL", response.redirectURL]);
+  return rows;
+}
+
+// A DevTools-style key/value table. Keys are bold and bright, the colon is
+// dimmed, values are plain; values always wrap.
+function requestHeaderTable(rows) {
+  const table = document.createElement("div");
+  table.className = "kv-table";
+  const longest = rows.reduce((max, [name]) => Math.max(max, String(name).length), 0);
+  table.style.setProperty("--kv-key-chars", String(Math.min(Math.max(longest, 6), 32)));
+  for (const [name, value, options] of rows) {
+    const row = document.createElement("div");
+    row.className = "kv-row";
+    const key = document.createElement("span");
+    key.className = "kv-key";
+    key.textContent = name;
+    const colon = document.createElement("span");
+    colon.className = "kv-colon";
+    colon.textContent = ":";
+    const val = document.createElement("span");
+    val.className = "kv-value";
+    if (options && "status" in options) val.appendChild(statusDot(options.status));
+    val.append(
+      value == null || value === ""
+        ? "—"
+        : typeof value === "string"
+          ? value
+          : JSON.stringify(value, null, 2)
+    );
+    row.append(key, colon, val);
+    table.appendChild(row);
+  }
+  return table;
+}
+
+// Collapsible section with an optional "Raw" checkbox in its header.
+function requestDetailSection(title, content, { rawKey = null } = {}) {
+  const section = document.createElement("section");
+  section.className = "request-detail-section";
+  const collapsed = collapsedDetailSections().has(title);
+  section.classList.toggle("collapsed", collapsed);
+
+  const heading = document.createElement("div");
+  heading.className = "request-detail-section-head";
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "request-detail-section-toggle";
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.innerHTML =
+    '<svg width="8" height="8" viewBox="0 0 8 8" fill="none">' +
+    '<path d="M2 1l4 3-4 3" stroke="currentColor" stroke-width="1.3"' +
+    ' stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+    `<span class="request-detail-section-title"></span>`;
+  toggle.querySelector(".request-detail-section-title").textContent = title;
+  const flip = () => {
+    const sections = collapsedDetailSections();
+    if (sections.has(title)) sections.delete(title);
+    else sections.add(title);
+    const nowCollapsed = sections.has(title);
+    section.classList.toggle("collapsed", nowCollapsed);
+    toggle.setAttribute("aria-expanded", String(!nowCollapsed));
+  };
+  toggle.addEventListener("click", flip);
+  heading.appendChild(toggle);
+
+  if (rawKey) {
+    const label = document.createElement("label");
+    label.className = "request-raw-check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = Boolean(state.requestRawSections[rawKey]);
+    input.addEventListener("change", () => {
+      state.requestRawSections[rawKey] = input.checked;
+      showSelectedRequestTab();
+    });
+    label.append(input, "Raw");
+    heading.appendChild(label);
+  }
+
+  const body = document.createElement("div");
+  body.className = "request-detail-section-body";
+  body.appendChild(content);
+  section.append(heading, body);
+  return section;
+}
+
+function renderHeadersPanel(entry) {
   const panel = requestDetailPanel("headers");
   if (!panel) return;
   panel.replaceChildren();
-  const record = entry._record;
-  const request = record.request;
-  const response = record.response;
-  const general = [
-    ["Request URL", request.url],
-    ["Request method", request.method],
-    [
-      "Status code",
-      `${response.status ?? "—"} ${response.statusText || ""}`.trim(),
-      `request-kv-status${Number(response.status) >= 400 ? " error" : ""}`,
-    ],
-    ["Remote domain", requestHost(entry)],
-    ["Resource type", requestTypeFor(entry)],
-    ["HTTP version", response.httpVersion || request.httpVersion],
-    ["Captured at", record.capturedAt],
-    ["Redirect URL", response.redirectURL],
-    ["Response size", response.bodySize == null ? null : `${response.bodySize} B`],
+  const { request, response } = entry._record;
+
+  panel.appendChild(requestDetailSection("General", requestHeaderTable(generalRows(entry))));
+
+  const responseStart =
+    `${response.httpVersion || ""} ${response.status ?? ""} ${response.statusText || ""}`.trim();
+  const requestStart = `${request.method} ${request.url} ${request.httpVersion || ""}`.trim();
+  const sections = [
+    ["Response headers", "response", response.headers, response.headersText, responseStart],
+    ["Request headers", "request", request.headers, request.headersText, requestStart],
   ];
-  panel.appendChild(requestDetailSection("General", requestDetailTable(general)));
-  if (raw) {
-    panel.append(
-      requestDetailSection(
-        "Request headers",
-        requestDetailPre(
-          request.headersText ||
-            rawHeaders(
-              `${request.method} ${request.url} ${request.httpVersion || ""}`.trim(),
-              request.headers
-            ),
-          true
-        )
-      ),
-      requestDetailSection(
-        "Response headers",
-        requestDetailPre(
-          response.headersText ||
-            rawHeaders(
-              `${response.httpVersion || ""} ${response.status ?? ""} ${response.statusText || ""}`.trim(),
-              response.headers
-            ),
-          true
-        )
-      )
-    );
-  } else {
-    panel.append(
-      requestDetailSection(
-        "Request headers",
-        request.headers.length
-          ? requestDetailTable(request.headers.map(({ name, value }) => [name, value]))
-          : requestDetailEmpty("No request headers")
-      ),
-      requestDetailSection(
-        "Response headers",
-        response.headers.length
-          ? requestDetailTable(response.headers.map(({ name, value }) => [name, value]))
-          : requestDetailEmpty("No response headers")
-      ),
-      requestDetailSection(
-        "Request cookies",
-        request.cookies.length
-          ? requestDetailTable(request.cookies.map(({ name, value }) => [name, value]))
-          : requestDetailEmpty("No request cookies")
-      ),
-      requestDetailSection(
-        "Response cookies",
-        response.cookies.length
-          ? requestDetailTable(response.cookies.map(({ name, value }) => [name, value]))
-          : requestDetailEmpty("No response cookies")
-      )
-    );
+  for (const [title, rawKey, headers, headersText, startLine] of sections) {
+    let content;
+    if (state.requestRawSections[rawKey]) {
+      content = requestDetailPre(headersText || rawHeaders(startLine, headers), true);
+    } else if (headers.length) {
+      content = requestHeaderTable(headers.map(({ name, value }) => [name, value]));
+    } else {
+      content = requestDetailEmpty(`No ${title.toLowerCase()}`);
+    }
+    panel.appendChild(requestDetailSection(title, content, { rawKey }));
   }
+}
+
+// ── Cookies tab ──────────────────────────────────────────────────────────────
+
+function cookieTable(cookies) {
+  const table = document.createElement("div");
+  table.className = "cookie-table";
+  const head = document.createElement("div");
+  head.className = "cookie-row cookie-head";
+  // The two flag columns are narrow, so they get a one-letter heading with the
+  // full name in the tooltip.
+  const columns = [
+    ["Name", "Name"],
+    ["Value", "Value"],
+    ["Path", "Path"],
+    ["Domain", "Domain"],
+    ["Expires", "Expires"],
+    ["H", "HttpOnly"],
+    ["S", "Secure"],
+    ["SameSite", "SameSite"],
+  ];
+  for (const [label, title] of columns) {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    cell.title = title;
+    head.appendChild(cell);
+  }
+  table.appendChild(head);
+  for (const cookie of cookies) {
+    const row = document.createElement("div");
+    row.className = "cookie-row";
+    const cells = [
+      cookie.name,
+      cookie.value,
+      cookie.path,
+      cookie.domain,
+      cookie.expires,
+      cookie.httpOnly ? "✓" : "",
+      cookie.secure ? "✓" : "",
+      cookie.sameSite,
+    ];
+    cells.forEach((value, index) => {
+      const cell = document.createElement("span");
+      cell.className = index === 0 ? "cookie-name" : "";
+      cell.textContent = value == null ? "" : String(value);
+      cell.title = cell.textContent;
+      row.appendChild(cell);
+    });
+    table.appendChild(row);
+  }
+  return table;
+}
+
+function requestCookies(entry) {
+  const { request, response } = entry._record;
+  return { request: request.cookies || [], response: response.cookies || [] };
+}
+
+function renderCookiesPanel(entry) {
+  const panel = requestDetailPanel("cookies");
+  if (!panel) return;
+  panel.replaceChildren();
+  const cookies = requestCookies(entry);
+  if (cookies.request.length) {
+    panel.appendChild(requestDetailSection("Request cookies", cookieTable(cookies.request)));
+  }
+  if (cookies.response.length) {
+    panel.appendChild(requestDetailSection("Response cookies", cookieTable(cookies.response)));
+  }
+}
+
+// Which tabs a request actually has: Payload only with params or a body,
+// Cookies only when any were sent or set.
+function availableRequestTabs(entry) {
+  const { request } = entry._record;
+  const cookies = requestCookies(entry);
+  const tabs = ["headers"];
+  if (
+    (request.queryParams && request.queryParams.length) ||
+    (request.body != null && request.body !== "")
+  ) {
+    tabs.push("payload");
+  }
+  tabs.push("response");
+  if (cookies.request.length || cookies.response.length) tabs.push("cookies");
+  tabs.push("timing");
+  return tabs;
 }
 
 // Shared by Payload/Response: renders one body area that's either the raw
@@ -599,7 +689,7 @@ function renderBodyArea({ treeHost, viewerHost, frame, bodyValue, lang, mime, wr
   }
 }
 
-function renderPayloadPanel(entry, raw) {
+function renderPayloadPanel(entry) {
   const panel = requestDetailPanel("payload");
   if (!panel) return;
   const record = entry._record;
@@ -607,18 +697,14 @@ function renderPayloadPanel(entry, raw) {
 
   const meta = document.getElementById("request-payload-meta");
   meta.replaceChildren();
-  let rawQuery = "";
-  try {
-    rawQuery = new URL(request.url).search.slice(1);
-  } catch {
-    rawQuery = "";
+  if (request.queryParams && request.queryParams.length) {
+    meta.appendChild(
+      requestDetailSection(
+        "Query string parameters",
+        requestHeaderTable(request.queryParams.map(({ name, value }) => [name, value]))
+      )
+    );
   }
-  const queryContent = raw
-    ? requestDetailPre(rawQuery, true)
-    : request.queryParams.length
-      ? requestDetailTable(request.queryParams.map(({ name, value }) => [name, value]))
-      : requestDetailEmpty("No query parameters");
-  meta.appendChild(requestDetailSection("Query parameters", queryContent));
 
   const treeHost = document.getElementById("request-payload-tree");
   const viewerHost = document.getElementById("request-payload-viewer");
@@ -630,11 +716,10 @@ function renderPayloadPanel(entry, raw) {
     meta.style.height = "";
     treeHost.hidden = true;
     viewerHost.hidden = true;
-    meta.appendChild(requestDetailEmpty("No request payload"));
     return;
   }
 
-  splitter.hidden = false;
+  splitter.hidden = !meta.childElementCount;
   const preview = getBodyPreview("payload");
   const bodyValue = preview ? request.body : (entry._rawRequestBody ?? textForBody(request.body));
   renderBodyArea({
@@ -715,7 +800,7 @@ function renderTimingPanel(entry) {
       value == null || value < 0 ? "—" : `${value} ms`,
     ]),
   ];
-  panel.appendChild(requestDetailSection("Timing", requestDetailTable(timingRows)));
+  panel.appendChild(requestDetailSection("Timing", requestHeaderTable(timingRows)));
 }
 
 document.getElementById("request-body-view-toggle")?.addEventListener("click", (event) => {
@@ -725,10 +810,6 @@ document.getElementById("request-body-view-toggle")?.addEventListener("click", (
   if (tab !== "payload" && tab !== "response") return;
   setBodyPreview(tab, button.dataset.bodyView === "parsed");
   showSelectedRequestTab();
-});
-
-el.requestFormatToggle.addEventListener("change", () => {
-  setRequestFormat(el.requestFormatToggle.checked);
 });
 
 // Draggable divider between the query-parameters block and the payload body.
@@ -767,27 +848,62 @@ el.requestFormatToggle.addEventListener("change", () => {
   });
 })();
 
-document.getElementById("request-wrap-toggle")?.addEventListener("change", (event) => {
-  state.requestDetailWrap = event.target.checked;
+function setRequestWrap(enabled) {
+  state.requestDetailWrap = Boolean(enabled);
   showSelectedRequestTab();
-});
+}
+
+// Wrap and Format live in the footer (like the file editor's controls) and
+// only apply to the Source view of Payload/Response.
+function updateRequestFooterControls(entry) {
+  const tab = state.requestDetailTab;
+  const bodyTab = tab === "payload" || tab === "response";
+  const sourceView = bodyTab && !getBodyPreview(tab) && !isBodyPlaceholder(entry, tab);
+  for (const [button, on] of [
+    [el.btnRequestFormat, state.requestDetailFormat],
+    [el.btnRequestWrap, state.requestDetailWrap],
+  ]) {
+    button.hidden = !sourceView;
+    button.classList.toggle("active", Boolean(on));
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+}
+
+// True when the response tab shows a status message instead of a real body.
+function isBodyPlaceholder(entry, tab) {
+  if (tab !== "response") return false;
+  const { response } = entry._record;
+  return (
+    entry._responseStatus === "loading" ||
+    entry._responseStatus === "unavailable" ||
+    response.body == null ||
+    response.body === ""
+  );
+}
+
+function renderRequestTabs(entry) {
+  const tabs = availableRequestTabs(entry);
+  if (!tabs.includes(state.requestDetailTab)) state.requestDetailTab = "headers";
+  for (const button of el.requestDetailTabs.querySelectorAll("button")) {
+    const name = button.dataset.requestTab;
+    button.hidden = !tabs.includes(name);
+    button.classList.toggle("active", name === state.requestDetailTab);
+  }
+}
 
 function renderRequestDetailBody(entry) {
-  const raw = state.requestDetailRaw;
-  el.requestDetailBody.classList.toggle("wrap", !!state.requestDetailWrap);
-
-  for (const tab of ["headers", "payload", "response", "timing"]) {
+  renderRequestTabs(entry);
+  for (const tab of ["headers", "payload", "response", "cookies", "timing"]) {
     const panel = requestDetailPanel(tab);
     if (panel) panel.hidden = tab !== state.requestDetailTab;
   }
   updateBodyViewToggle(entry);
-  const bodyTab = state.requestDetailTab === "payload" || state.requestDetailTab === "response";
-  el.requestFormatToggle.closest("label").hidden = !bodyTab;
-  el.requestFormatToggle.checked = state.requestDetailFormat;
+  updateRequestFooterControls(entry);
 
-  if (state.requestDetailTab === "headers") return renderHeadersPanel(entry, raw);
-  if (state.requestDetailTab === "payload") return renderPayloadPanel(entry, raw);
+  if (state.requestDetailTab === "headers") return renderHeadersPanel(entry);
+  if (state.requestDetailTab === "payload") return renderPayloadPanel(entry);
   if (state.requestDetailTab === "response") return renderResponsePanel(entry);
+  if (state.requestDetailTab === "cookies") return renderCookiesPanel(entry);
   return renderTimingPanel(entry);
 }
 
@@ -821,12 +937,6 @@ function renderRequestDetails(entry) {
     detailText("request-summary-method", record.request.method),
     urlField
   );
-  for (const button of el.requestDetailTabs.querySelectorAll("button")) {
-    button.classList.toggle("active", button.dataset.requestTab === state.requestDetailTab);
-  }
-  el.requestRawToggle.checked = state.requestDetailRaw;
-  const wrapToggle = document.getElementById("request-wrap-toggle");
-  if (wrapToggle) wrapToggle.checked = !!state.requestDetailWrap;
   renderRequestDetailBody(entry);
 
   el.previewLangBadge.textContent = "REQUEST";
@@ -847,3 +957,6 @@ async function showSelectedRequestTab() {
     renderRequestDetails(entry);
   }
 }
+
+el.btnRequestFormat.addEventListener("click", () => setRequestFormat(!state.requestDetailFormat));
+el.btnRequestWrap.addEventListener("click", () => setRequestWrap(!state.requestDetailWrap));
