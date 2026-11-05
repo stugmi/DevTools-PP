@@ -1,0 +1,20 @@
+# Formatter settings for bun fmt. Lint rules and shared globals live in eslint.config.js.
+[fmt]
+semi = true
+singleQuote = false
+trailingComma = "es5"
+printWidth = 100
+tabWidth = 2
+arrowParens = "always"
+endOfLine = "lf"
+ignorePatterns = [
+  "node_modules/",
+  "vendor/",
+  "src/vendor/",
+  "dist/",
+  "out/",
+  "old/",
+  ".temp/",
+  "*.min.js",
+  ".claude/",
+]

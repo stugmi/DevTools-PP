@@ -1,33 +1,36 @@
 {
   "name": "source-exporter",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "private": true,
   "description": "An extension to help exporting and reconstructing source files from source maps",
   "scripts": {
-    "clean": "node scripts/build.js --clean",
-    "build": "node scripts/build.js",
-    "typecheck": "tsc --noEmit",
-    "typecheck:watch": "tsc --noEmit --watch",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md}\"",
-    "format:check": "prettier --check \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md}\"",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run build",
-    "fix": "npm run lint:fix && npm run format && npm run build"
+    "clean": "bun scripts/build.js --clean",
+    "build": "bun scripts/build.js",
+    "typecheck": "bun run --bun tsc --noEmit",
+    "typecheck:watch": "bun run --bun tsc --noEmit --watch",
+    "test": "bun test ./scripts/test-sniff-body-lang.js",
+    "lint": "bun lint --no-script .",
+    "lint:fix": "bun lint --no-script . --fix",
+    "format": "bun fmt --no-script \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md,toml}\" \".github/**/*.yml\"",
+    "format:check": "bun fmt --no-script --check \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md,toml}\" \".github/**/*.yml\"",
+    "check": "bun run typecheck && bun run lint && bun run format:check && bun run build",
+    "fix": "bun run lint:fix && bun run format && bun run build"
   },
+  "packageManager": "bun@1.4.4-canary.20261105.1",
+  "trustedDependencies": [
+    "bun"
+  ],
   "devDependencies": {
-    "@eslint/js": "^9.17.0",
+    "@eslint/js": "^9.39.5",
     "@types/chrome": "^0.0.287",
-    "bun-tasks": "^0.1.4",
-    "eslint": "^9.17.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.2.1",
+    "bun": "1.4.4-canary.20261105.1",
+    "crx3": "2.0.0",
     "globals": "^15.14.0",
     "monaco-editor": "0.52.2",
-    "prettier": "^3.4.2",
     "typescript": "^5.7.2"
   },
   "dependencies": {
-    "js-beautify": "^1.15.4"
+    "js-beautify": "^1.15.4",
+    "jszip": "3.10.1"
   }
 }

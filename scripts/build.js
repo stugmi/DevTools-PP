@@ -1,3 +1,7 @@
+// Builds the unpacked extension into dist/: syncs the version from package.json,
+// copies src/, adds the vendored runtimes (Monaco, JSZip, js-beautify) from
+// node_modules and writes the worker map.
+
 "use strict";
 
 const fs = require("node:fs");
@@ -8,10 +12,14 @@ const source = path.join(root, "src");
 const output = path.join(root, "dist");
 const monacoSource = path.join(root, "node_modules", "monaco-editor", "min", "vs");
 const monacoOutput = path.join(output, "vendor", "monaco", "vs");
+// Single-file vendor scripts copied from node_modules (source path relative to node_modules).
+const vendorFiles = [
+  ["jszip/dist/jszip.min.js", "jszip.min.js"],
+  ["js-beautify/js/lib/beautifier.min.js", "beautifier.min.js"],
+];
 
-// package.json is the single source of truth for the version. Propagate it to
-// every other tracked copy (src/manifest.json, package-lock.json) before the
-// source is copied into dist, so a bump only ever happens in package.json.
+// package.json is the only place the version is edited. Sync the source manifest
+// before copying src/ into dist/.
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 
 const srcManifestPath = path.join(source, "manifest.json");
@@ -23,24 +31,16 @@ if (!versionLine.test(srcManifestText)) {
 const syncedManifestText = srcManifestText.replace(versionLine, `$1"${packageJson.version}"`);
 if (syncedManifestText !== srcManifestText) fs.writeFileSync(srcManifestPath, syncedManifestText);
 
-const lockPath = path.join(root, "package-lock.json");
-if (fs.existsSync(lockPath)) {
-  const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
-  if (
-    lock.version !== packageJson.version ||
-    lock.packages?.[""]?.version !== packageJson.version
-  ) {
-    lock.version = packageJson.version;
-    if (lock.packages?.[""]) lock.packages[""].version = packageJson.version;
-    fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
-  }
-}
-
 fs.rmSync(output, { recursive: true, force: true });
 if (process.argv.includes("--clean")) process.exit(0);
 
 if (!fs.existsSync(monacoSource)) {
-  throw new Error("monaco-editor missing; run npm install first");
+  throw new Error("monaco-editor missing; run bun install first");
+}
+for (const [from] of vendorFiles) {
+  if (!fs.existsSync(path.join(root, "node_modules", from))) {
+    throw new Error(`${from} missing; run bun install first`);
+  }
 }
 
 fs.cpSync(source, output, {
@@ -48,6 +48,10 @@ fs.cpSync(source, output, {
   filter: (item) => path.basename(item) !== "Thumbs.db",
 });
 fs.cpSync(monacoSource, monacoOutput, { recursive: true });
+fs.mkdirSync(path.join(output, "vendor"), { recursive: true });
+for (const [from, to] of vendorFiles) {
+  fs.copyFileSync(path.join(root, "node_modules", from), path.join(output, "vendor", to));
+}
 
 const panelPath = path.join(output, "panel", "panel.html");
 const panelHtml = fs.readFileSync(panelPath, "utf8");
