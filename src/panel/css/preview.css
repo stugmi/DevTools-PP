@@ -1,0 +1,357 @@
+/* Editor area: preview tabs, image preview, code view and footer. */
+
+/* -- Preview tabs -- */
+#preview-tabs {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 0;
+  scrollbar-width: thin;
+}
+
+#preview-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+#preview-tabs::-webkit-scrollbar-thumb {
+  background: var(--bg-4);
+}
+
+.preview-tabs-empty {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  padding: 0 6px;
+}
+
+.preview-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 6px 0 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  max-width: 220px;
+  position: relative;
+  top: 1px;
+}
+
+.preview-tab:hover {
+  background: var(--bg-3);
+  color: var(--text-secondary);
+}
+
+.preview-tab:focus-visible {
+  outline: 1px solid var(--border-active);
+  outline-offset: -1px;
+}
+
+.preview-tab.active {
+  background: var(--bg-0);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  top: 0;
+}
+
+.preview-tab.preview .tab-name {
+  font-style: italic;
+}
+
+.tab-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.preview-tab.active .tab-pin {
+  opacity: 1;
+}
+
+.tab-pin-icon {
+  display: block;
+}
+
+.tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tab-close:hover {
+  background: var(--bg-4);
+  color: var(--text-primary);
+}
+
+.tab-close:focus-visible {
+  outline: 1px solid var(--border-active);
+  outline-offset: 0;
+}
+
+/* -- Image preview -- */
+#preview-image-wrap {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 100%;
+  padding: 24px;
+  background: repeating-conic-gradient(var(--bg-1) 0% 25%, var(--bg-2) 0% 50%) 50% / 16px 16px;
+}
+
+#preview-image {
+  max-width: 100%;
+  max-height: calc(100vh - 200px);
+  display: block;
+  background: var(--bg-0);
+  box-shadow: 0 0 0 1px var(--border);
+  image-rendering: pixelated;
+}
+
+#preview-image-meta {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  background: var(--bg-2);
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+/* -- Panel -- */
+#preview-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 120px;
+  background: var(--bg-0);
+}
+
+#preview-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 4px 10px 0 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-1);
+  gap: 8px;
+  min-height: 28px;
+}
+
+#preview-actions {
+  padding-bottom: 4px;
+}
+
+#preview-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+#editor-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* -- Placeholder -- */
+#preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+#preview-placeholder.missing svg,
+#preview-placeholder.missing > span:first-of-type {
+  color: var(--red);
+}
+
+.placeholder-extra {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.placeholder-extra.mono {
+  font-family: var(--font-mono);
+}
+
+/* -- Footer -- */
+#preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-1);
+  flex-shrink: 0;
+  min-height: 22px;
+}
+
+#preview-footer-left,
+#preview-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+#preview-footer-left {
+  flex-shrink: 0;
+}
+
+#preview-footer-right {
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.footer-pretty-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.footer-pretty-btn:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.footer-pretty-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent-hover);
+  border-color: var(--accent);
+}
+
+.footer-pretty-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+#preview-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.footer-label {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.footer-url {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: underline dotted transparent;
+  text-underline-offset: 2px;
+  transition:
+    color 0.12s,
+    text-decoration-color 0.12s;
+}
+
+.footer-url:hover {
+  color: var(--accent-hover);
+  text-decoration-color: var(--accent-hover);
+}
+
+#preview-map-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-url.is-link:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.footer-url:not(.is-link) {
+  cursor: default;
+}
+
+/* Request body controls (Format, Wrap, Language) share the footer with the editor's. */
+.footer-request-btn[hidden],
+.footer-request-select[hidden] {
+  display: none;
+}
+
+.footer-request-select {
+  height: 20px;
+  max-width: 140px;
+  padding: 0 4px;
+  background: var(--bg-3);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.footer-request-select:hover {
+  color: var(--text-primary);
+}
+
+/* A request has no file to search, cross-reference, wrap or prettify. */
+#preview-actions.request-actions #btn-find-file,
+#preview-actions.request-actions #btn-references,
+#preview-actions.request-actions #btn-wrap {
+  display: none;
+}
+
+#preview-footer.request-actions #btn-pretty {
+  display: none;
+}

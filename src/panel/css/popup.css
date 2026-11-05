@@ -1,0 +1,71 @@
+/* Toolbar popup: a short how-to with numbered steps. Follows the system colour scheme. */
+
+:root {
+  color-scheme: dark light;
+  --popup-bg: #1e2328;
+  --popup-title: #7aa0c4;
+  --popup-text: #9ab0c0;
+  --popup-muted: #8697a6;
+  --popup-line: #2a3040;
+  --popup-marker: #8fc0e6;
+  --popup-fg: #cdd6e0;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --popup-bg: #ffffff;
+    --popup-title: #0b5cad;
+    --popup-text: #36424e;
+    --popup-muted: #566370;
+    --popup-line: #d0d7de;
+    --popup-marker: #0b5cad;
+    --popup-fg: #1f2328;
+  }
+}
+
+body {
+  width: 220px;
+  background: var(--popup-bg);
+  color: var(--popup-fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 12px;
+  padding: 12px;
+  margin: 0;
+}
+
+h1 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--popup-title);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+p {
+  color: var(--popup-muted);
+  line-height: 1.6;
+  margin: 0 0 10px 0;
+  font-size: 11px;
+}
+
+.steps {
+  margin: 0;
+  padding: 0 0 0 18px;
+}
+
+.steps li {
+  padding: 4px 0 4px 4px;
+  color: var(--popup-text);
+  font-size: 11px;
+  border-bottom: 1px solid var(--popup-line);
+}
+
+.steps li:last-child {
+  border-bottom: none;
+}
+
+.steps li::marker {
+  color: var(--popup-marker);
+  font-weight: 700;
+}

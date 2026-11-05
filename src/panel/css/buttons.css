@@ -1,0 +1,77 @@
+/* Shared button styles: .btn and its variants. Linked right after base.css so component sheets can override. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--bg-4);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn-sm {
+  padding: 2px 8px;
+  font-size: var(--fs-xs);
+}
+
+/* After .btn-sm so icon buttons keep their tighter padding at any size. */
+.btn-icon {
+  padding: 3px 5px;
+}
+
+.btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-ghost {
+  color: var(--text-secondary);
+  background: transparent;
+  border-color: transparent;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-4);
+  border-color: transparent;
+}
+
+.btn-ghost.active {
+  color: var(--accent);
+  background: transparent;
+  border-color: transparent;
+}

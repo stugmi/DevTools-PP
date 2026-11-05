@@ -1,0 +1,75 @@
+/* Bottom status bar: connection indicator, status text and filter chip. */
+
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  height: 22px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.indicator.inactive {
+  background: var(--text-dim);
+}
+
+.indicator.connecting {
+  background: var(--orange);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .indicator.connecting {
+    animation: pulse 1s infinite;
+  }
+}
+
+.indicator.active {
+  background: var(--green);
+}
+
+.indicator.error {
+  background: var(--red);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+#status-text {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.status-chip {
+  margin-left: auto;
+  padding: 0 8px;
+  color: var(--orange);
+  background: transparent;
+  border: 0;
+  font: var(--fs-xs) var(--font-ui);
+  cursor: pointer;
+}
+
+.status-chip:hover {
+  text-decoration: underline;
+}
+
+.status-chip.error {
+  color: var(--red);
+}

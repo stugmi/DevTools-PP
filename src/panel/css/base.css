@@ -1,0 +1,367 @@
+/* Reset, theme variables and page-level styles shared by every view. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* -- Type scale -- */
+:root {
+  --fs-xs: 10px;
+  --fs-sm: 11px;
+  --fs-md: 12px;
+  --fs-lg: 13px;
+}
+
+:root,
+:root[data-theme="vs-dark"] {
+  color-scheme: dark;
+  --bg-0: #1e1e1e;
+  --bg-1: #252526;
+  --bg-2: #252526;
+  --bg-3: #2d2d30;
+  --bg-4: #37373d;
+  --border: #333333;
+  --border-active: #007acc;
+  --border-strong: #454545;
+  --on-accent: #ffffff;
+  --on-type: #000000;
+  --text-primary: #cccccc;
+  --text-secondary: #969696;
+  --text-dim: #8d8d8d;
+  --accent: #007acc;
+  --accent-hover: #1f8ad2;
+  --accent-dim: #0e3a5a;
+  --green: #4ec9b0;
+  --red: #f14c4c;
+  --orange: #ce9178;
+  --dir-color: #dcb67a;
+  --file-color: #cccccc;
+  --type-js: #dcdcaa;
+  --type-xhr: #4ec9b0;
+  --type-doc: #9cdcfe;
+  --type-json: #ce9178;
+  --type-media: #ce9178;
+  --type-socket: #4ec9b0;
+  --type-wasm: #c586c0;
+  --type-other: #9cdcfe;
+  --type-default: #b99ada;
+  --accent-request: #8467ae;
+  --accent-request-strong: #a98bd6;
+  --method: #8ec7ef;
+  --match-highlight: rgba(74, 144, 196, 0.35);
+  --match-highlight-search: rgba(220, 170, 55, 0.35);
+  --kv-key: color-mix(in srgb, var(--text-primary) 72%, var(--text-secondary));
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Consolas", monospace;
+}
+
+:root[data-theme="devtools"] {
+  color-scheme: dark;
+  --bg-0: #202124;
+  --bg-1: #202124;
+  --bg-2: #292a2d;
+  --bg-3: #35373b;
+  --bg-4: #3c4043;
+  --border: #3c4043;
+  --border-active: #8ab4f8;
+  --border-strong: #5f6368;
+  --on-accent: #1f2024;
+  --on-type: #000000;
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa0a6;
+  --text-dim: #848a8f;
+  --accent: #8ab4f8;
+  --accent-hover: #aecbfa;
+  --accent-dim: #1f3b5c;
+  --green: #81c995;
+  --red: #f28b82;
+  --orange: #fcad70;
+  --dir-color: #8ab4f8;
+  --file-color: #e8eaed;
+  --type-js: #fdd663;
+  --type-xhr: #8ab4f8;
+  --type-doc: #78d9ec;
+  --type-json: #81c995;
+  --type-media: #fcad70;
+  --type-socket: #81c995;
+  --type-wasm: #c58af9;
+  --type-other: #e8eaed;
+  --type-default: #b99ada;
+  --accent-request: #8467ae;
+  --accent-request-strong: #a98bd6;
+  --method: #8ab4f8;
+  --match-highlight: rgba(138, 180, 248, 0.3);
+  --match-highlight-search: rgba(253, 214, 99, 0.35);
+}
+
+:root[data-theme="source-exporter"] {
+  color-scheme: dark;
+  --bg-0: #1e2328;
+  --bg-1: #1a1e24;
+  --bg-2: #22272e;
+  --bg-3: #282d35;
+  --bg-4: #2e3440;
+  --border: #28313e;
+  --border-active: #3d5a7a;
+  --border-strong: #34414f;
+  --on-accent: #ffffff;
+  --on-type: #000000;
+  --text-primary: #e0e8f0;
+  --text-secondary: #a8bccd;
+  --text-dim: #7c8893;
+  --accent: #4a90c4;
+  --accent-hover: #5aa0d4;
+  --accent-dim: #1e3a54;
+  --green: #4caf7a;
+  --red: #e05a5a;
+  --orange: #d4874a;
+  --dir-color: #7aa0c4;
+  --file-color: #cdd6e0;
+  --type-js: #c4a44a;
+  --type-xhr: #4a90c4;
+  --type-doc: #7aa0c4;
+  --type-json: #5cb87a;
+  --type-media: #d4874a;
+  --type-socket: #4ec4a8;
+  --type-wasm: #a878e0;
+  --type-other: #c47a5a;
+  --type-default: #b99ada;
+  --accent-request: #8467ae;
+  --accent-request-strong: #a98bd6;
+  --method: #8ec7ef;
+  --match-highlight: rgba(74, 144, 196, 0.35);
+  --match-highlight-search: rgba(196, 164, 74, 0.35);
+  --kv-key: color-mix(in srgb, var(--text-primary) 36%, var(--text-secondary));
+}
+
+:root[data-theme="vs"] {
+  color-scheme: light;
+  --bg-0: #ffffff;
+  --bg-1: #f3f3f3;
+  --bg-2: #f8f8f8;
+  --bg-3: #e8e8e8;
+  --bg-4: #d4d4d4;
+  --border: #e5e5e5;
+  --border-active: #007acc;
+  --border-strong: #c8c8c8;
+  --on-accent: #ffffff;
+  --on-type: #ffffff;
+  --text-primary: #333333;
+  --text-secondary: #616161;
+  --text-dim: #6d6d6d;
+  --accent: #007acc;
+  --accent-hover: #0062a3;
+  --accent-dim: #e1f0fa;
+  --green: #098658;
+  --red: #cd3131;
+  --orange: #b85400;
+  --dir-color: #007acc;
+  --file-color: #333333;
+  --type-js: #795e26;
+  --type-xhr: #007acc;
+  --type-doc: #007acc;
+  --type-json: #098658;
+  --type-media: #b85400;
+  --type-socket: #098658;
+  --type-wasm: #811f3f;
+  --type-other: #616161;
+  --type-default: #6f42c1;
+  --accent-request: #7b4fb0;
+  --accent-request-strong: #6f42c1;
+  --method: #0b5cad;
+  --match-highlight: rgba(0, 122, 204, 0.22);
+  --match-highlight-search: rgba(255, 200, 0, 0.45);
+}
+
+:root[data-theme="source-exporter-light"] {
+  color-scheme: light;
+  --bg-0: #ffffff;
+  --bg-1: #f6f8fa;
+  --bg-2: #f1f3f5;
+  --bg-3: #e1e4e8;
+  --bg-4: #d0d7de;
+  --border: #d0d7de;
+  --border-active: #0969da;
+  --border-strong: #b6bec7;
+  --on-accent: #ffffff;
+  --on-type: #ffffff;
+  --text-primary: #1f2328;
+  --text-secondary: #656d76;
+  --text-dim: #6b7179;
+  --accent: #0969da;
+  --accent-hover: #0854ad;
+  --accent-dim: #ddf4ff;
+  --green: #1a7f37;
+  --red: #cf222e;
+  --orange: #bc4c00;
+  --dir-color: #0969da;
+  --file-color: #1f2328;
+  --type-js: #9a6700;
+  --type-xhr: #0969da;
+  --type-doc: #0969da;
+  --type-json: #1a7f37;
+  --type-media: #bc4c00;
+  --type-socket: #1a7f37;
+  --type-wasm: #8250df;
+  --type-other: #656d76;
+  --type-default: #6639ba;
+  --accent-request: #8250df;
+  --accent-request-strong: #6639ba;
+  --method: #0550ae;
+  --match-highlight: rgba(9, 105, 218, 0.2);
+  --match-highlight-search: rgba(255, 200, 0, 0.45);
+}
+
+:root[data-theme="hc-black"] {
+  color-scheme: dark;
+  --bg-0: #000000;
+  --bg-1: #000000;
+  --bg-2: #0c0c0c;
+  --bg-3: #1a1a1a;
+  --bg-4: #262626;
+  --border: #6fc3df;
+  --border-active: #f38518;
+  --border-strong: #6fc3df;
+  --on-accent: #000000;
+  --on-type: #000000;
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-dim: #888888;
+  --accent: #f38518;
+  --accent-hover: #ffa040;
+  --accent-dim: #331c00;
+  --green: #89d185;
+  --red: #f48771;
+  --orange: #f38518;
+  --dir-color: #6fc3df;
+  --file-color: #ffffff;
+  --type-js: #ffd370;
+  --type-xhr: #6fc3df;
+  --type-doc: #6fc3df;
+  --type-json: #89d185;
+  --type-media: #f38518;
+  --type-socket: #89d185;
+  --type-wasm: #d16969;
+  --type-other: #ffffff;
+  --type-default: #d2bff2;
+  --accent-request: #a98bd6;
+  --accent-request-strong: #c9b3ee;
+  --method: #6fc3df;
+  --match-highlight: rgba(243, 133, 24, 0.35);
+  --match-highlight-search: rgba(255, 211, 112, 0.4);
+}
+
+:root[data-theme="hc-light"] {
+  color-scheme: light;
+  --bg-0: #ffffff;
+  --bg-1: #ffffff;
+  --bg-2: #f8f8f8;
+  --bg-3: #eeeeee;
+  --bg-4: #e0e0e0;
+  --border: #0f4a85;
+  --border-active: #0066bf;
+  --border-strong: #0f4a85;
+  --on-accent: #ffffff;
+  --on-type: #ffffff;
+  --text-primary: #000000;
+  --text-secondary: #222222;
+  --text-dim: #555555;
+  --accent: #0f4a85;
+  --accent-hover: #002f6c;
+  --accent-dim: #cce5f7;
+  --green: #036a00;
+  --red: #b5200d;
+  --orange: #a64d00;
+  --dir-color: #0f4a85;
+  --file-color: #000000;
+  --type-js: #8f6b00;
+  --type-xhr: #0f4a85;
+  --type-doc: #0f4a85;
+  --type-json: #036a00;
+  --type-media: #a64d00;
+  --type-socket: #036a00;
+  --type-wasm: #710000;
+  --type-other: #000000;
+  --type-default: #3b1d6e;
+  --accent-request: #5b2d91;
+  --accent-request-strong: #3b1d6e;
+  --method: #0f4a85;
+  --match-highlight: rgba(15, 74, 133, 0.2);
+  --match-highlight-search: rgba(255, 214, 0, 0.5);
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg-0);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Inline SVG sprite: referenced with <use>, never shown itself. */
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* -- Scrollbars -- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-4);
+  border-radius: 3px;
+}
+
+/* -- Keyboard focus -- */
+/* :where keeps specificity at zero so component rules can restyle the ring. */
+:where(
+  button,
+  select,
+  summary,
+  [role="button"],
+  [role="link"],
+  [role="tab"],
+  [role="treeitem"],
+  [role="menuitem"],
+  [role="separator"][tabindex]
+):focus-visible {
+  outline: 1px solid var(--border-active);
+  outline-offset: -1px;
+}
+
+/* -- Reduced motion -- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

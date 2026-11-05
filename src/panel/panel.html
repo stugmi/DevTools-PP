@@ -3,16 +3,72 @@
   <head>
     <meta charset="utf-8" />
     <title>Source Exporter</title>
-    <script>
-      try {
-        const savedTheme = localStorage.getItem("se.editorTheme") || "vs-dark";
-        document.documentElement.setAttribute("data-theme", savedTheme);
-      } catch (_) {}
-    </script>
-    <link rel="stylesheet" href="panel.css" />
+    <script src="js/core/theme-boot.js"></script>
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/buttons.css" />
+    <link rel="stylesheet" href="css/header.css" />
+    <link rel="stylesheet" href="css/toolbar.css" />
+    <link rel="stylesheet" href="css/statusbar.css" />
+    <link rel="stylesheet" href="css/tree.css" />
+    <link rel="stylesheet" href="css/preview.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/search.css" />
+    <link rel="stylesheet" href="css/overlays.css" />
+    <link rel="stylesheet" href="css/settings.css" />
+    <link rel="stylesheet" href="css/network.css" />
+    <link rel="stylesheet" href="css/request-detail.css" />
+    <link rel="stylesheet" href="css/cookies.css" />
   </head>
 
   <body>
+    <!-- Icon sprite: each shared icon is defined once and referenced with <use>. -->
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-export" viewBox="0 0 16 16">
+        <path
+          d="M8 2v8m0 0L5 7m3 3l3-3M3 13h10"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="i-format" viewBox="0 0 13 13">
+        <path
+          d="M2 3.5h9M2 6.5h6M2 9.5h9"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.15"
+          stroke-linecap="round"
+        />
+        <path
+          d="M9.5 5.2l1.3 1.3-1.3 1.3"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.05"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="i-wrap" viewBox="0 0 11 11">
+        <path
+          d="M1 2h9M1 5h6a2 2 0 0 1 0 4H5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.1"
+          stroke-linecap="round"
+        />
+        <path
+          d="M3 7l-2 2 2 2"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.1"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </symbol>
+    </svg>
+
     <div id="app">
       <!-- Header -->
       <header id="header">
@@ -23,6 +79,7 @@
             viewBox="0 0 16 16"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
           >
             <path d="M2 2h7l3 3v9H2V2z" stroke="var(--dir-color)" stroke-width="1.2" fill="none" />
             <path d="M9 2v3h3" stroke="var(--dir-color)" stroke-width="1.2" fill="none" />
@@ -58,38 +115,53 @@
           <div id="layout-toggles" class="icon-group" role="group" aria-label="Toggle layout areas">
             <button
               id="btn-toggle-left"
+              type="button"
               class="btn btn-icon btn-ghost"
-              title="Toggle left side bar (Ctrl+B)"
+              title="Toggle left side bar"
+              aria-label="Toggle left side bar"
+              data-keybind="view.toggleLeft"
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" />
                 <rect x="2" y="3" width="4" height="10" fill="currentColor" />
               </svg>
             </button>
             <button
               id="btn-toggle-bottom"
+              type="button"
               class="btn btn-icon btn-ghost"
-              title="Toggle bottom panel (Ctrl+J)"
+              title="Toggle bottom panel"
+              aria-label="Toggle bottom panel"
+              data-keybind="view.toggleBottom"
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" />
                 <rect x="2" y="9" width="12" height="4" fill="currentColor" />
               </svg>
             </button>
             <button
               id="btn-toggle-right"
+              type="button"
               class="btn btn-icon btn-ghost"
-              title="Toggle right side bar (Ctrl+Alt+B)"
+              title="Toggle right side bar"
+              aria-label="Toggle right side bar"
+              data-keybind="view.toggleRight"
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" />
                 <rect x="10" y="3" width="4" height="10" fill="currentColor" />
               </svg>
             </button>
           </div>
           <span class="header-sep"></span>
-          <button id="btn-refresh" class="btn btn-icon btn-ghost" title="Re-scan scripts">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="13">
+          <button
+            id="btn-refresh"
+            type="button"
+            class="btn btn-icon btn-ghost"
+            title="Re-scan scripts"
+            aria-label="Re-scan scripts"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" width="13" aria-hidden="true">
               <rect x="0" width="24" height="24" fill="none" />
               <path
                 d="M17.91 14c-.478 2.833-2.943 5-5.91 5-3.308 0-6-2.692-6-6s2.692-6 6-6h2.172l-2.086 2.086L13.5 10.5 18 6l-4.5-4.5-1.414 1.414L14.172 5H12c-4.418 0-8 3.582-8 8s3.582 8 8 8c4.08 0 7.438-3.055 7.93-7h-2.02z"
@@ -101,7 +173,9 @@
               <option value="zip">ZIP</option>
               <option value="tar">TAR</option>
             </select>
-            <button id="btn-export-all" class="btn btn-primary" disabled>Export All</button>
+            <button id="btn-export-all" type="button" class="btn btn-primary" disabled>
+              Export All
+            </button>
           </div>
         </div>
       </header>
@@ -110,7 +184,8 @@
       <div id="files-toolbar">
         <button
           id="btn-collection-mode"
-          class="btn btn-sm btn-icon-text capture-toggle"
+          type="button"
+          class="capture-toggle"
           aria-pressed="false"
           title="Keep files and all request snapshots across inspected-page navigations and reloads"
         >
@@ -122,11 +197,11 @@
           class="view-toggle"
           title="Toggle source-mapped files and raw resources independently"
         >
-          <button class="view-pill active" data-view="mapped" aria-pressed="true">
+          <button type="button" class="view-pill active" data-view="mapped" aria-pressed="true">
             <span class="view-pill-dot view-pill-mapped"></span>
             Mapped
           </button>
-          <button class="view-pill active" data-view="raw" aria-pressed="true">
+          <button type="button" class="view-pill active" data-view="raw" aria-pressed="true">
             <span class="view-pill-dot view-pill-raw"></span>
             Raw
           </button>
@@ -134,8 +209,9 @@
         <div id="files-filter-input-slot">
           <input
             id="filter-input"
-            type="text"
+            type="search"
             placeholder="Filter files or URLs..."
+            aria-label="Filter files or URLs"
             spellcheck="false"
           />
         </div>
@@ -150,18 +226,20 @@
             <option value="">All domains</option>
           </select>
         </label>
-        <div class="request-filter-field">
-          <span>Type</span>
+        <div class="request-filter-field" role="group" aria-labelledby="request-type-label">
+          <span id="request-type-label">Type</span>
           <div id="request-type-filters" class="request-type-filters">
-            <button type="button" data-request-type="" class="active">All</button>
-            <button type="button" data-request-type="xhr">Fetch/XHR</button>
-            <button type="button" data-request-type="doc">Doc</button>
-            <button type="button" data-request-type="js">JS</button>
-            <button type="button" data-request-type="json">JSON</button>
-            <button type="button" data-request-type="media">Media</button>
-            <button type="button" data-request-type="socket">Socket</button>
-            <button type="button" data-request-type="wasm">Wasm</button>
-            <button type="button" data-request-type="other">Other</button>
+            <button type="button" data-request-type="" class="active" aria-pressed="true">
+              All
+            </button>
+            <button type="button" data-request-type="xhr" aria-pressed="false">Fetch/XHR</button>
+            <button type="button" data-request-type="doc" aria-pressed="false">Doc</button>
+            <button type="button" data-request-type="js" aria-pressed="false">JS</button>
+            <button type="button" data-request-type="json" aria-pressed="false">JSON</button>
+            <button type="button" data-request-type="media" aria-pressed="false">Media</button>
+            <button type="button" data-request-type="socket" aria-pressed="false">Socket</button>
+            <button type="button" data-request-type="wasm" aria-pressed="false">Wasm</button>
+            <button type="button" data-request-type="other" aria-pressed="false">Other</button>
           </div>
         </div>
         <label class="request-filter-field">
@@ -170,22 +248,37 @@
             <option value="">All methods</option>
           </select>
         </label>
-        <div class="request-filter-field">
-          <span>Duration (ms)</span>
+        <div class="request-filter-field" role="group" aria-labelledby="request-time-label">
+          <span id="request-time-label">Duration (ms)</span>
           <div class="request-time-inputs">
-            <input id="request-time-min" type="number" min="0" step="1" placeholder="Min" />
-            <span>–</span>
-            <input id="request-time-max" type="number" min="0" step="1" placeholder="Max" />
+            <input
+              id="request-time-min"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="Min"
+              aria-label="Minimum duration (ms)"
+            />
+            <span aria-hidden="true">–</span>
+            <input
+              id="request-time-max"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="Max"
+              aria-label="Maximum duration (ms)"
+            />
           </div>
         </div>
         <button id="request-filter-clear" type="button">Clear</button>
       </div>
 
       <!-- Main content -->
-      <div id="main" data-workspace="files">
+      <div id="main">
         <nav id="activity-bar" aria-label="Views">
           <div class="activity-group">
             <button
+              type="button"
               class="activity-btn"
               data-view="explorer"
               title="Explorer"
@@ -207,6 +300,7 @@
               </svg>
             </button>
             <button
+              type="button"
               class="activity-btn"
               data-view="requests"
               title="Requests"
@@ -223,9 +317,11 @@
               </svg>
             </button>
             <button
+              type="button"
               class="activity-btn"
               data-view="search"
-              title="Search (Ctrl+Shift+H)"
+              title="Search"
+              data-keybind="search.workspace"
               aria-label="Search"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -242,11 +338,13 @@
           <div class="activity-group">
             <button
               id="btn-settings"
+              type="button"
               class="activity-btn"
-              title="Settings (Ctrl+,)"
+              title="Settings"
+              data-keybind="settings.toggle"
               aria-label="Settings"
             >
-              <svg fill="currentColor" viewBox="-12 -12 24 24" width="18">
+              <svg fill="currentColor" viewBox="-12 -12 24 24" width="18" aria-hidden="true">
                 <path
                   d="M-1.4-11q-.7.3-.7 1 .3 2-1 2.6c-1.3.6-1.7-.1-2.4-1q-.5-.7-1.2-.3l-2 2q-.4.7.2 1.2Q-7-4.4-7.4-3.1c-.4 1.3-1.4 1.2-2.5 1q-.9 0-1 .7v2.8q.1.7 1 .7 1.8-.2 2.5 1c.7 1.2-.1 1.7-1 2.4q-.7.5-.3 1.2l2 2q.7.4 1.2-.2Q-4.4 7-3.1 7.4c1.3.4 1.2 1.4 1 2.5q0 .9.7 1h2.8q.7-.1.7-1-.2-1.8 1-2.5c1.2-.7 1.7.1 2.4 1q.5.7 1.2.3l2-2q.4-.7-.2-1.2Q7 4.4 7.4 3.1c.4-1.3 1.4-1.2 2.5-1q.9 0 1-.7v-2.8q-.1-.7-1-.7-1.8.2-2.5-1c-.7-1.2.1-1.7 1-2.4q.8-.5.3-1.2l-2-2q-.7-.4-1.2.2Q4.4-7 3.1-7.4c-1.3-.4-1.2-1.4-1-2.5q0-.9-.7-1zM4 0a4 4 0 1 1-8 0 4 4 0 0 1 8 0"
                 ></path>
@@ -260,12 +358,11 @@
           <section id="tree-panel" class="view" data-view="explorer" aria-label="Explorer">
             <div id="tree-header" class="view-header">
               <span class="view-title">Sources</span>
-              <span id="file-count">—</span>
             </div>
             <div id="tree-container">
               <div id="empty-state">
                 <div class="empty-icon">
-                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
                     <rect
                       x="6"
                       y="4"
@@ -309,46 +406,71 @@
                 aria-label="Export requests"
                 disabled
               >
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path
-                    d="M8 2v8m0 0L5 7m3 3l3-3M3 13h10"
-                    stroke="currentColor"
-                    stroke-width="1.3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
+                <svg width="13" height="13" fill="none" aria-hidden="true">
+                  <use href="#i-export" />
                 </svg>
               </button>
             </div>
-            <div id="network-table">
-              <div id="network-table-header" class="network-row-grid">
-                <button type="button" class="network-col network-col-name" data-sort-key="name">
+            <div id="network-table" role="table" aria-label="Requests">
+              <div id="network-table-header" class="network-row-grid" role="row">
+                <button
+                  type="button"
+                  role="columnheader"
+                  class="network-col network-col-name"
+                  data-sort-key="name"
+                >
                   Name
                 </button>
-                <button type="button" class="network-col network-col-status" data-sort-key="status">
+                <button
+                  type="button"
+                  role="columnheader"
+                  class="network-col network-col-status"
+                  data-sort-key="status"
+                >
                   Status
                 </button>
-                <button type="button" class="network-col network-col-type" data-sort-key="type">
+                <button
+                  type="button"
+                  role="columnheader"
+                  class="network-col network-col-type"
+                  data-sort-key="type"
+                >
                   Type
                 </button>
-                <button type="button" class="network-col network-col-domain" data-sort-key="domain">
+                <button
+                  type="button"
+                  role="columnheader"
+                  class="network-col network-col-domain"
+                  data-sort-key="domain"
+                >
                   Domain
                 </button>
-                <button type="button" class="network-col network-col-size" data-sort-key="size">
+                <button
+                  type="button"
+                  role="columnheader"
+                  class="network-col network-col-size"
+                  data-sort-key="size"
+                >
                   Size
                 </button>
-                <button type="button" class="network-col network-col-time" data-sort-key="time">
+                <button
+                  type="button"
+                  role="columnheader"
+                  class="network-col network-col-time"
+                  data-sort-key="time"
+                >
                   Time
                 </button>
                 <button
                   type="button"
+                  role="columnheader"
                   class="network-col network-col-timestamp"
                   data-sort-key="timestamp"
                 >
                   Timestamp
                 </button>
               </div>
-              <div id="network-table-body">
+              <div id="network-table-body" role="rowgroup">
                 <div id="network-empty-state">No requests match the current filters</div>
               </div>
             </div>
@@ -366,6 +488,7 @@
               <span class="view-header-actions">
                 <button
                   id="btn-search-collapse"
+                  type="button"
                   class="btn btn-icon btn-ghost"
                   title="Collapse all results"
                   aria-label="Collapse all results"
@@ -382,12 +505,13 @@
                 </button>
               </span>
             </div>
-            <form id="workspace-search-form">
+            <form id="workspace-search-form" role="search">
               <div class="search-input-wrap">
                 <input
                   id="workspace-search-input"
                   type="search"
                   placeholder="Search"
+                  aria-label="Search all files"
                   spellcheck="false"
                 />
                 <button
@@ -421,6 +545,8 @@
           data-dock="left"
           role="separator"
           aria-orientation="vertical"
+          aria-label="Resize left side bar"
+          tabindex="0"
         ></div>
 
         <div id="center">
@@ -431,38 +557,35 @@
               <div id="preview-actions" style="display: none">
                 <button
                   id="btn-find-file"
+                  type="button"
                   class="btn btn-sm btn-icon-text"
-                  title="Search current file (Ctrl+F)"
+                  title="Search current file"
+                  data-keybind="editor.find"
                 >
                   Find
                 </button>
                 <button
                   id="btn-references"
+                  type="button"
                   class="btn btn-sm btn-icon-text"
-                  title="List references for symbol (Shift+F12)"
+                  title="List references for symbol"
+                  data-keybind="editor.findReferences"
                 >
                   References
                 </button>
-                <button id="btn-wrap" class="btn btn-sm btn-icon-text" title="Toggle word wrap">
-                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                    <path
-                      d="M1 2h9M1 5h6a2 2 0 0 1 0 4H5"
-                      stroke="currentColor"
-                      stroke-width="1.1"
-                      stroke-linecap="round"
-                    />
-                    <path
-                      d="M3 7l-2 2 2 2"
-                      stroke="currentColor"
-                      stroke-width="1.1"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
+                <button
+                  id="btn-wrap"
+                  type="button"
+                  class="btn btn-sm btn-icon-text"
+                  title="Toggle word wrap"
+                >
+                  <svg width="11" height="11" fill="none" aria-hidden="true">
+                    <use href="#i-wrap" />
                   </svg>
                   Wrap
                 </button>
-                <button id="btn-copy" class="btn btn-sm btn-icon-text">
-                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <button id="btn-copy" type="button" class="btn btn-sm btn-icon-text">
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
                     <rect
                       x="3.5"
                       y="3.5"
@@ -484,25 +607,20 @@
                 </button>
                 <button
                   id="btn-export-file"
+                  type="button"
                   class="btn btn-sm btn-icon btn-ghost"
                   title="Export this file only"
                   aria-label="Export this file"
                 >
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path
-                      d="M8 2v8m0 0L5 7m3 3l3-3M3 13h10"
-                      stroke="currentColor"
-                      stroke-width="1.3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
+                  <svg width="13" height="13" fill="none" aria-hidden="true">
+                    <use href="#i-export" />
                   </svg>
                 </button>
               </div>
             </div>
             <div id="preview-content">
               <div id="preview-placeholder">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
                   <path
                     d="M8 4h10l6 6v18H8V4z"
                     stroke="currentColor"
@@ -519,53 +637,165 @@
                 </svg>
                 <span>No item selected</span>
               </div>
-              <div id="editor-container" style="display: none" aria-label="Source editor"></div>
+              <div
+                id="editor-container"
+                style="display: none"
+                role="region"
+                aria-label="Source editor"
+              ></div>
               <section id="request-detail" aria-label="Request details" hidden>
                 <div id="request-summary"></div>
                 <div class="request-detail-toolbar">
-                  <nav id="request-detail-tabs" aria-label="Request detail sections">
-                    <button type="button" data-request-tab="headers" class="active">Headers</button>
-                    <button type="button" data-request-tab="payload">Payload</button>
-                    <button type="button" data-request-tab="preview">Preview</button>
-                    <button type="button" data-request-tab="response">Response</button>
-                    <button type="button" data-request-tab="cookies">Cookies</button>
-                    <button type="button" data-request-tab="timing">Timing</button>
-                  </nav>
-                  <div id="request-body-view-toggle" class="request-body-view-toggle" hidden>
-                    <button type="button" data-body-view="source" class="active">Source</button>
-                    <button type="button" data-body-view="parsed">Parsed</button>
+                  <div id="request-detail-tabs" role="tablist" aria-label="Request detail sections">
+                    <button
+                      id="request-tab-headers"
+                      type="button"
+                      role="tab"
+                      aria-selected="true"
+                      aria-controls="request-detail-panel-headers"
+                      data-request-tab="headers"
+                      class="active"
+                    >
+                      Headers
+                    </button>
+                    <button
+                      id="request-tab-payload"
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="request-detail-panel-payload"
+                      data-request-tab="payload"
+                    >
+                      Payload
+                    </button>
+                    <button
+                      id="request-tab-preview"
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="request-detail-panel-preview"
+                      data-request-tab="preview"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      id="request-tab-response"
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="request-detail-panel-response"
+                      data-request-tab="response"
+                    >
+                      Response
+                    </button>
+                    <button
+                      id="request-tab-cookies"
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="request-detail-panel-cookies"
+                      data-request-tab="cookies"
+                    >
+                      Cookies
+                    </button>
+                    <button
+                      id="request-tab-timing"
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="request-detail-panel-timing"
+                      data-request-tab="timing"
+                    >
+                      Timing
+                    </button>
+                  </div>
+                  <div
+                    id="request-body-view-toggle"
+                    class="request-body-view-toggle"
+                    role="group"
+                    aria-label="Body view"
+                    hidden
+                  >
+                    <button
+                      type="button"
+                      data-body-view="source"
+                      class="active"
+                      aria-pressed="true"
+                    >
+                      Source
+                    </button>
+                    <button type="button" data-body-view="parsed" aria-pressed="false">
+                      Parsed
+                    </button>
                   </div>
                 </div>
                 <div id="request-detail-body">
-                  <div id="request-detail-panel-headers" class="request-detail-panel"></div>
-                  <div id="request-detail-panel-payload" class="request-detail-panel" hidden>
+                  <div
+                    id="request-detail-panel-headers"
+                    class="request-detail-panel"
+                    role="tabpanel"
+                    aria-labelledby="request-tab-headers"
+                  ></div>
+                  <div
+                    id="request-detail-panel-payload"
+                    class="request-detail-panel"
+                    role="tabpanel"
+                    aria-labelledby="request-tab-payload"
+                    hidden
+                  >
                     <div id="request-payload-meta"></div>
                     <div
                       id="request-payload-splitter"
                       class="inline-splitter"
                       role="separator"
                       aria-orientation="horizontal"
+                      aria-label="Resize payload sections"
+                      tabindex="0"
                       title="Drag to resize"
                     ></div>
                     <div id="request-payload-tree" class="json-tree-host" hidden></div>
                     <div id="request-payload-viewer" class="request-viewer-host"></div>
                   </div>
-                  <div id="request-detail-panel-preview" class="request-detail-panel" hidden>
+                  <div
+                    id="request-detail-panel-preview"
+                    class="request-detail-panel"
+                    role="tabpanel"
+                    aria-labelledby="request-tab-preview"
+                    hidden
+                  >
                     <iframe
                       id="request-preview-frame"
                       class="request-preview-frame"
                       title="Response preview"
-                      sandbox="allow-same-origin"
+                      sandbox=""
                       hidden
                     ></iframe>
                     <div id="request-preview-message" hidden></div>
                   </div>
-                  <div id="request-detail-panel-response" class="request-detail-panel" hidden>
+                  <div
+                    id="request-detail-panel-response"
+                    class="request-detail-panel"
+                    role="tabpanel"
+                    aria-labelledby="request-tab-response"
+                    hidden
+                  >
                     <div id="request-response-tree" class="json-tree-host" hidden></div>
                     <div id="request-response-viewer" class="request-viewer-host"></div>
                   </div>
-                  <div id="request-detail-panel-cookies" class="request-detail-panel" hidden></div>
-                  <div id="request-detail-panel-timing" class="request-detail-panel" hidden></div>
+                  <div
+                    id="request-detail-panel-cookies"
+                    class="request-detail-panel"
+                    role="tabpanel"
+                    aria-labelledby="request-tab-cookies"
+                    hidden
+                  ></div>
+                  <div
+                    id="request-detail-panel-timing"
+                    class="request-detail-panel"
+                    role="tabpanel"
+                    aria-labelledby="request-tab-timing"
+                    hidden
+                  ></div>
                 </div>
               </section>
               <div id="preview-image-wrap" style="display: none">
@@ -577,24 +807,14 @@
               <div id="preview-footer-left">
                 <button
                   id="btn-pretty"
+                  type="button"
                   class="footer-pretty-btn"
-                  title="Format this file (Ctrl+Shift+F)"
+                  title="Format this file"
+                  data-keybind="file.format"
                   aria-label="Format this file"
                 >
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-                    <path
-                      d="M2 3.5h9M2 6.5h6M2 9.5h9"
-                      stroke="currentColor"
-                      stroke-width="1.15"
-                      stroke-linecap="round"
-                    />
-                    <path
-                      d="M9.5 5.2l1.3 1.3-1.3 1.3"
-                      stroke="currentColor"
-                      stroke-width="1.05"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
+                  <svg width="13" height="13" fill="none" aria-hidden="true">
+                    <use href="#i-format" />
                   </svg>
                 </button>
                 <span id="preview-lang-badge"></span>
@@ -602,24 +822,13 @@
                   id="btn-request-format"
                   class="footer-pretty-btn footer-request-btn"
                   type="button"
-                  title="Format body (Ctrl+Shift+F)"
+                  title="Format body"
+                  data-keybind="file.format"
                   aria-label="Format body"
                   hidden
                 >
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-                    <path
-                      d="M2 3.5h9M2 6.5h6M2 9.5h9"
-                      stroke="currentColor"
-                      stroke-width="1.15"
-                      stroke-linecap="round"
-                    />
-                    <path
-                      d="M9.5 5.2l1.3 1.3-1.3 1.3"
-                      stroke="currentColor"
-                      stroke-width="1.05"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
+                  <svg width="13" height="13" fill="none" aria-hidden="true">
+                    <use href="#i-format" />
                   </svg>
                 </button>
                 <button
@@ -630,20 +839,8 @@
                   aria-label="Toggle word wrap"
                   hidden
                 >
-                  <svg width="13" height="13" viewBox="0 0 11 11" fill="none" aria-hidden="true">
-                    <path
-                      d="M1 2h9M1 5h6a2 2 0 0 1 0 4H5"
-                      stroke="currentColor"
-                      stroke-width="1.1"
-                      stroke-linecap="round"
-                    />
-                    <path
-                      d="M3 7l-2 2 2 2"
-                      stroke="currentColor"
-                      stroke-width="1.1"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
+                  <svg width="13" height="13" fill="none" aria-hidden="true">
+                    <use href="#i-wrap" />
                   </svg>
                 </button>
                 <select
@@ -657,10 +854,10 @@
               </div>
               <div id="preview-footer-right">
                 <span class="footer-label">from</span>
-                <span id="preview-script-url" class="footer-url" role="link" tabindex="0"></span>
+                <span id="preview-script-url" class="footer-url" role="link"></span>
                 <span id="preview-map-block">
                   <span class="footer-label">via</span>
-                  <span id="preview-map-url" class="footer-url" role="link" tabindex="0"></span>
+                  <span id="preview-map-url" class="footer-url" role="link"></span>
                 </span>
               </div>
             </div>
@@ -670,6 +867,8 @@
             data-dock="bottom"
             role="separator"
             aria-orientation="horizontal"
+            aria-label="Resize bottom panel"
+            tabindex="0"
           ></div>
           <div id="dock-bottom" class="dock" data-dock="bottom"></div>
         </div>
@@ -679,6 +878,8 @@
           data-dock="right"
           role="separator"
           aria-orientation="vertical"
+          aria-label="Resize right side bar"
+          tabindex="0"
         ></div>
         <div id="dock-right" class="dock" data-dock="right"></div>
 
@@ -691,8 +892,8 @@
 
       <!-- Status bar -->
       <div id="statusbar">
-        <span id="status-indicator" class="indicator inactive"></span>
-        <span id="status-text">Not connected</span>
+        <span id="status-indicator" class="indicator inactive" aria-hidden="true"></span>
+        <span id="status-text" role="status" aria-live="polite">Not connected</span>
         <button
           id="status-filter"
           type="button"
@@ -703,19 +904,38 @@
       </div>
 
       <!-- Context menu -->
-      <div id="context-menu" style="display: none">
-        <div class="ctx-item" id="ctx-export-file">Export file</div>
-        <div class="ctx-item" id="ctx-export-dir">Export directory</div>
-        <div class="ctx-item" id="ctx-export-section">Export section</div>
-        <div class="ctx-item" id="ctx-collapse-all">Collapse all folders</div>
-        <div class="ctx-item" id="ctx-expand-all">Expand all folders</div>
-        <div class="ctx-item" id="ctx-copy-path">Copy path</div>
-        <div class="ctx-separator"></div>
-        <div class="ctx-item" id="ctx-export-all">Export all sources</div>
+      <div id="context-menu" style="display: none" role="menu" aria-label="File actions">
+        <div class="ctx-item" id="ctx-open-request-url" role="menuitem" tabindex="-1">
+          Open in new tab
+        </div>
+        <div class="ctx-item" id="ctx-export-file" role="menuitem" tabindex="-1">Export file</div>
+        <div class="ctx-item" id="ctx-export-dir" role="menuitem" tabindex="-1">
+          Export directory
+        </div>
+        <div class="ctx-item" id="ctx-export-section" role="menuitem" tabindex="-1">
+          Export section
+        </div>
+        <div class="ctx-item" id="ctx-collapse-all" role="menuitem" tabindex="-1">
+          Collapse all folders
+        </div>
+        <div class="ctx-item" id="ctx-expand-all" role="menuitem" tabindex="-1">
+          Expand all folders
+        </div>
+        <div class="ctx-item" id="ctx-copy-path" role="menuitem" tabindex="-1">Copy path</div>
+        <div class="ctx-separator" role="separator"></div>
+        <div class="ctx-item" id="ctx-export-all" role="menuitem" tabindex="-1">
+          Export all sources
+        </div>
       </div>
-      <div id="view-menu" class="context-menu-like" style="display: none" role="menu"></div>
+      <div id="view-menu" style="display: none" role="menu" aria-label="View options"></div>
 
-      <div id="quick-picker" role="dialog" aria-modal="true" hidden>
+      <div
+        id="quick-picker"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quick-picker-title"
+        hidden
+      >
         <div class="quick-picker-box">
           <div class="quick-picker-title-row">
             <strong id="quick-picker-title">Open file</strong>
@@ -724,11 +944,16 @@
           <input
             id="quick-picker-input"
             type="search"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="quick-picker-results"
+            aria-autocomplete="list"
+            aria-labelledby="quick-picker-title"
             placeholder="Type a file name…"
             autocomplete="off"
             spellcheck="false"
           />
-          <div id="quick-picker-results" role="listbox"></div>
+          <div id="quick-picker-results" role="listbox" aria-labelledby="quick-picker-title"></div>
           <div class="quick-picker-footer">
             <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
             <span><kbd>Enter</kbd> select</span>
@@ -742,23 +967,40 @@
         <div class="es-box">
           <div class="es-header">
             <strong class="es-title">Settings</strong>
-            <input id="es-search" type="search" placeholder="Search settings…" spellcheck="false" />
+            <input
+              id="es-search"
+              type="search"
+              placeholder="Search settings…"
+              aria-label="Search settings"
+              spellcheck="false"
+            />
             <div class="es-header-actions">
               <button
                 id="es-mode-toggle"
+                type="button"
                 class="btn btn-sm btn-icon-text"
                 title="Edit editor settings as JSON"
+                aria-pressed="false"
               >
                 { } Editor JSON
               </button>
               <button
                 id="es-reset-all"
+                type="button"
                 class="btn btn-sm btn-icon-text"
                 title="Reset every setting to its default"
               >
                 Reset All
               </button>
-              <button id="es-close" class="btn btn-icon btn-ghost" title="Close (Esc)">×</button>
+              <button
+                id="es-close"
+                type="button"
+                class="btn btn-icon btn-ghost"
+                title="Close (Esc)"
+                aria-label="Close settings"
+              >
+                ×
+              </button>
             </div>
           </div>
           <div class="es-main">
@@ -771,16 +1013,33 @@
           </div>
           <div class="es-footer">
             <span id="es-count"></span>
-            <span class="es-hint">Ctrl+, toggles settings · changes apply live</span>
+            <span class="es-hint"
+              ><span data-keybind-label="settings.toggle"></span> toggles settings · changes apply
+              live</span
+            >
           </div>
         </div>
       </div>
 
       <!-- Progress overlay -->
-      <div id="progress-overlay" style="display: none">
+      <div
+        id="progress-overlay"
+        style="display: none"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="progress-title"
+        tabindex="-1"
+      >
         <div id="progress-box">
           <div id="progress-title">Building archive...</div>
-          <div id="progress-bar-wrap">
+          <div
+            id="progress-bar-wrap"
+            role="progressbar"
+            aria-labelledby="progress-title"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
             <div id="progress-bar"></div>
           </div>
           <div id="progress-detail"></div>
@@ -792,22 +1051,29 @@
     <script src="../vendor/beautifier.min.js"></script>
     <script src="../vendor/monaco/worker-map.js"></script>
     <script src="../vendor/monaco/vs/loader.js"></script>
-    <script src="monaco-loader.js"></script>
-    <script src="editor.js"></script>
-    <script src="editor-settings.js"></script>
-    <script src="state.js"></script>
-    <script src="filetype.js"></script>
-    <script src="discovery.js"></script>
-    <script src="capture.js"></script>
-    <script src="tree.js"></script>
-    <script src="request-viewer.js"></script>
-    <script src="cookies.js"></script>
-    <script src="requests.js"></script>
-    <script src="tabs-preview.js"></script>
-    <script src="export.js"></script>
-    <script src="search.js"></script>
-    <script src="app-settings.js"></script>
-    <script src="layout.js"></script>
-    <script src="panel.js"></script>
+    <script src="js/core/keybinds.js"></script>
+    <script src="js/editor/monaco-loader.js"></script>
+    <script src="js/editor/editor.js"></script>
+    <script src="js/settings/editor-settings.js"></script>
+    <script src="js/core/state.js"></script>
+    <script src="js/lib/filetype.js"></script>
+    <script src="js/capture/discovery.js"></script>
+    <script src="js/capture/raw-capture.js"></script>
+    <script src="js/capture/request-capture.js"></script>
+    <script src="js/capture/capture.js"></script>
+    <script src="js/sources/tree.js"></script>
+    <script src="js/editor/request-viewer.js"></script>
+    <script src="js/network/cookies.js"></script>
+    <script src="js/network/network-table.js"></script>
+    <script src="js/network/request-body.js"></script>
+    <script src="js/network/body-trees.js"></script>
+    <script src="js/network/request-detail.js"></script>
+    <script src="js/workbench/tabs-preview.js"></script>
+    <script src="js/workbench/export.js"></script>
+    <script src="js/workbench/search.js"></script>
+    <script src="js/settings/app-settings.js"></script>
+    <script src="js/workbench/layout.js"></script>
+    <script src="js/workbench/keyboard.js"></script>
+    <script src="js/main.js"></script>
   </body>
 </html>

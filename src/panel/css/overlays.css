@@ -1,0 +1,220 @@
+/* Floating UI: quick picker, context and view menus, progress overlay. */
+
+/* -- Quick picker -- */
+#quick-picker {
+  position: fixed;
+  /* Above the settings window (1500), below the export progress overlay (2000). */
+  z-index: 1800;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: min(11vh, 90px);
+  background: rgba(4, 8, 12, 0.48);
+}
+
+#quick-picker[hidden] {
+  display: none;
+}
+
+.quick-picker-box {
+  width: min(660px, calc(100% - 32px));
+  max-height: min(520px, calc(100vh - 120px));
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  box-shadow: 0 14px 45px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.quick-picker-title-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 10px 4px;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
+#quick-picker-hint {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+#quick-picker-input {
+  margin: 4px 8px 7px;
+  padding: 7px 9px;
+  color: var(--text-primary);
+  background: var(--bg-0);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+}
+
+#quick-picker-results {
+  min-height: 42px;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+}
+
+.quick-picker-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-picker-item:hover,
+.quick-picker-item.active {
+  background: var(--accent-dim);
+}
+
+.quick-picker-item-label,
+.quick-picker-item-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-picker-item-label {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.quick-picker-item-detail {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.quick-picker-footer {
+  display: flex;
+  gap: 14px;
+  padding: 5px 9px;
+  color: var(--text-dim);
+  background: var(--bg-2);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-xs);
+}
+
+kbd {
+  margin-right: 2px;
+  padding: 1px 4px;
+  color: var(--text-secondary);
+  background: var(--bg-4);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+/* -- Context and view menus -- */
+#context-menu,
+#view-menu {
+  position: fixed;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 3px 0;
+  z-index: 1000;
+  min-width: 170px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.ctx-item {
+  padding: 5px 14px;
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ctx-item:hover,
+.ctx-item:focus-visible {
+  background: var(--accent-dim);
+  color: var(--accent-hover);
+}
+
+.ctx-item:focus-visible {
+  outline: none;
+}
+
+.ctx-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 0;
+}
+
+#view-menu .ctx-item {
+  position: relative;
+  padding-left: 28px;
+  white-space: nowrap;
+}
+
+#view-menu .ctx-item.checked::before {
+  position: absolute;
+  left: 10px;
+  content: "✓";
+}
+
+/* -- Progress overlay -- */
+#progress-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 18, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(2px);
+  outline: none;
+}
+
+#progress-box {
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 20px 24px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#progress-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#progress-bar-wrap {
+  height: 4px;
+  background: var(--bg-4);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.2s;
+}
+
+#progress-detail {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

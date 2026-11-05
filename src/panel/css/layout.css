@@ -1,0 +1,307 @@
+/* Workbench layout: activity bar, docks, splitters, drop zones and view headers. */
+
+/* -- Main layout -- */
+#main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-0);
+}
+
+.view[hidden],
+.dock[hidden],
+.dock-splitter[hidden],
+.dock-tabs[hidden],
+.dock-empty[hidden],
+.activity-btn[hidden] {
+  display: none !important;
+}
+
+#activity-bar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 38px;
+  padding: 4px 0;
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+}
+
+.activity-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 38px;
+  padding: 0;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.activity-btn:hover,
+.activity-btn.active {
+  color: var(--text-primary);
+}
+
+.activity-btn.active::before {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 2px;
+  background: var(--accent);
+  content: "";
+}
+
+.dock {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-1);
+}
+
+#dock-left,
+#dock-right {
+  min-width: 140px;
+}
+
+#dock-bottom {
+  min-height: 80px;
+}
+
+.dock > .view {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-1);
+}
+
+.dock-tabs {
+  display: flex;
+  flex-shrink: 0;
+  align-items: stretch;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.dock-tab {
+  position: relative;
+  height: 28px;
+  padding: 0 12px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  font: var(--fs-sm) var(--font-ui);
+  cursor: pointer;
+}
+
+.dock-tab:hover,
+.dock-tab.active {
+  color: var(--text-primary);
+}
+
+.dock-tab.active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  content: "";
+}
+
+.dock-empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+#center {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 1px divider with a wider invisible hit area for dragging. */
+.dock-splitter {
+  position: relative;
+  z-index: 20;
+  flex: 0 0 1px;
+  background: var(--border);
+  transition: background 0.12s;
+}
+
+.dock-splitter::after {
+  position: absolute;
+  content: "";
+}
+
+.dock-splitter[data-dock="left"],
+.dock-splitter[data-dock="right"] {
+  cursor: col-resize;
+}
+
+.dock-splitter[data-dock="left"]::after,
+.dock-splitter[data-dock="right"]::after {
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  left: -3px;
+}
+
+.dock-splitter[data-dock="bottom"] {
+  cursor: row-resize;
+}
+
+.dock-splitter[data-dock="bottom"]::after {
+  top: -3px;
+  right: 0;
+  bottom: -3px;
+  left: 0;
+}
+
+.dock-splitter:hover,
+.dock-splitter:focus-visible,
+.dock-splitter.dragging {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.dock-splitter:focus-visible {
+  outline: none;
+}
+
+#dock-drop-overlay {
+  position: absolute;
+  z-index: 40;
+  inset: 0;
+  pointer-events: none;
+}
+
+#dock-drop-overlay[hidden] {
+  display: none;
+}
+
+.drop-zone {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px dashed var(--accent);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+.drop-zone.active {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  opacity: 1;
+}
+
+.drop-zone[data-dock="left"] {
+  top: 0;
+  bottom: 28%;
+  left: 0;
+  width: 25%;
+}
+
+.drop-zone[data-dock="right"] {
+  top: 0;
+  right: 0;
+  bottom: 28%;
+  width: 25%;
+}
+
+.drop-zone[data-dock="bottom"] {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 28%;
+}
+
+body.dragging-view,
+body.dragging-view * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+body.resizing-col,
+body.resizing-col * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.resizing-row,
+body.resizing-row * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
+body.dragging-view iframe,
+body.resizing-col iframe,
+body.resizing-row iframe {
+  pointer-events: none;
+}
+
+/* -- View headers -- */
+.view-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 4px 0 10px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: grab;
+  user-select: none;
+}
+
+.view-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.view-menu-btn {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* With a tab strip the per-view header is redundant. */
+.dock.has-tabs .view-header {
+  display: none;
+}
+
+.dock-tabs .view-menu-btn {
+  align-self: center;
+  margin: 0 4px 0 auto;
+}

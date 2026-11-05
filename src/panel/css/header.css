@@ -1,0 +1,123 @@
+/* Top header: title, workspace tabs, layout toggles and export controls. */
+
+#header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  height: 36px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+#header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+#title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+#header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#version {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-variant: proportional-nums;
+}
+
+/* -- Workspace tabs -- */
+#workspace-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  gap: 14px;
+}
+
+.workspace-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: var(--fs-md) var(--font-ui);
+  padding: 0 2px;
+  transition: color 0.12s;
+}
+
+.workspace-tab:hover {
+  color: var(--text-primary);
+}
+
+.workspace-tab.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.workspace-tab.active::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  content: "";
+}
+
+/* -- Header actions -- */
+#format-select {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  padding: 2px 4px;
+  outline: none;
+  cursor: pointer;
+}
+
+#format-select:focus-visible {
+  outline: 1px solid var(--border-active);
+}
+
+.icon-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.header-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+/* Format picker and Export All read as one split button. */
+.btn-split {
+  display: flex;
+  align-items: stretch;
+}
+
+.btn-split #format-select {
+  padding: 0 4px;
+  border-right: 0;
+  border-radius: 3px 0 0 3px;
+}
+
+.btn-split .btn-primary {
+  border-radius: 0 3px 3px 0;
+}
