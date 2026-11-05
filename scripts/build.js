@@ -9,6 +9,33 @@ const output = path.join(root, "dist");
 const monacoSource = path.join(root, "node_modules", "monaco-editor", "min", "vs");
 const monacoOutput = path.join(output, "vendor", "monaco", "vs");
 
+// package.json is the single source of truth for the version. Propagate it to
+// every other tracked copy (src/manifest.json, package-lock.json) before the
+// source is copied into dist, so a bump only ever happens in package.json.
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+
+const srcManifestPath = path.join(source, "manifest.json");
+const srcManifestText = fs.readFileSync(srcManifestPath, "utf8");
+const versionLine = /^(\s*"version":\s*)"[^"]*"/m;
+if (!versionLine.test(srcManifestText)) {
+  throw new Error("src/manifest.json has no version field");
+}
+const syncedManifestText = srcManifestText.replace(versionLine, `$1"${packageJson.version}"`);
+if (syncedManifestText !== srcManifestText) fs.writeFileSync(srcManifestPath, syncedManifestText);
+
+const lockPath = path.join(root, "package-lock.json");
+if (fs.existsSync(lockPath)) {
+  const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+  if (
+    lock.version !== packageJson.version ||
+    lock.packages?.[""]?.version !== packageJson.version
+  ) {
+    lock.version = packageJson.version;
+    if (lock.packages?.[""]) lock.packages[""].version = packageJson.version;
+    fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
+  }
+}
+
 fs.rmSync(output, { recursive: true, force: true });
 if (process.argv.includes("--clean")) process.exit(0);
 
@@ -22,7 +49,6 @@ fs.cpSync(source, output, {
 });
 fs.cpSync(monacoSource, monacoOutput, { recursive: true });
 
-const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const panelPath = path.join(output, "panel", "panel.html");
 const panelHtml = fs.readFileSync(panelPath, "utf8");
 if (!panelHtml.includes("{{version}}")) {
@@ -51,13 +77,8 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 if (!manifest.devtools_page || !fs.existsSync(path.join(output, manifest.devtools_page))) {
   throw new Error("built manifest points at a missing DevTools page");
 }
-
-// package.json is the single source of truth for the version; keep the
-// shipped manifest.json in sync with it so a version bump only needs to
-// happen in one place.
 if (manifest.version !== packageJson.version) {
-  manifest.version = packageJson.version;
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+  throw new Error("built manifest version does not match package.json");
 }
 
 console.log(`Built extension ${manifest.version} in ${path.relative(root, output)}`);
