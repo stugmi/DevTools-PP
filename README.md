@@ -56,6 +56,8 @@ locations matching a regular expression. The filter affects the tree, counts, an
 - Press **Ctrl+Shift+P** to open the Source Exporter command palette.
 - Hold **Ctrl** and click a symbol, or press **F12**, to jump to its closest preceding declaration or assignment.
 - Press **Shift+F12** or click **References** to list references across captured website files.
+- With a request selected, press **↑** / **↓** to move through the request list and **Alt+←** / **Alt+→** to cycle the Headers, Payload, Preview, Response, Cookies, and Timing tabs (outside the Network workspace they cycle the open editor tabs).
+- Press **Esc** to dismiss the front-most layer: an open menu, the Settings window, then the request view. Once nothing is left to close, Esc reaches DevTools and toggles its drawer as usual.
 - Source Exporter shortcuts only apply while its DevTools panel has focus.
 - Edited content is used by Copy and Export and marked with a dot in its tab.
 

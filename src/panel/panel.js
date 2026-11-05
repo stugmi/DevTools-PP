@@ -274,12 +274,163 @@ function swallowShortcut(event) {
   event.stopPropagation();
 }
 
+// ── Keyboard navigation ──────────────────────────────────────────────────────
+// Modelled on DevTools: Esc dismisses one layer at a time (menu, settings
+// window, request view) and only falls through -- unhandled, so DevTools
+// toggles its drawer -- once nothing is left to dismiss. Up/Down walk the
+// request list and Alt+Left/Right cycle the tabs of whichever view is in front.
+
+const IS_MAC = /mac/i.test(navigator.platform);
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button",
+  "checkbox",
+  "color",
+  "file",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+]);
+
+// True for controls that use the arrow keys / Esc themselves. Read-only inputs
+// (the request URL field) don't count.
+function isTypingTarget(target) {
+  if (!(target instanceof Element)) return false;
+  if (target.isContentEditable) return true;
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  return (
+    target instanceof HTMLInputElement && !target.readOnly && !NON_TEXT_INPUT_TYPES.has(target.type)
+  );
+}
+
+// A Monaco widget (find, suggestions, parameter hints) that should get the
+// Esc keypress before anything behind it is dismissed.
+function monacoWidgetOpen(target) {
+  const editor = target instanceof Element ? target.closest(".monaco-editor") : null;
+  return Boolean(
+    editor?.querySelector(
+      ".find-widget.visible, .suggest-widget.visible, .parameter-hints-widget.visible"
+    )
+  );
+}
+
+function menuOpen() {
+  return el.contextMenu.style.display !== "none" || el.viewMenu.style.display !== "none";
+}
+
+function closeMenus() {
+  hideContextMenu();
+  window.PanelLayout.closeViewMenu();
+}
+
+function settingsOwns(target) {
+  return (
+    Boolean(window.EditorSettingsPanel?.isOpen()) &&
+    target instanceof Element &&
+    Boolean(target.closest("#editor-settings-modal"))
+  );
+}
+
+// Closes the front-most dismissible layer. Returns false when there is
+// nothing to close (or a control should handle Esc itself) so the key is left
+// alone.
+function dismissTopLayer(event) {
+  const target = event.target;
+  if (!el.quickPicker.hidden) {
+    closeQuickPicker();
+    return true;
+  }
+  if (document.body.classList.contains("dragging-view")) return false; // layout drag owns Esc
+  if (monacoWidgetOpen(target)) return false;
+  if (menuOpen()) {
+    closeMenus();
+    return true;
+  }
+  if (window.EditorSettingsPanel?.isOpen()) {
+    window.EditorSettingsPanel.close();
+    return true;
+  }
+  const inMonaco = target instanceof Element && target.closest(".monaco-editor");
+  if (isTypingTarget(target) && !inMonaco) return false; // e.g. cookie cell edit cancels itself
+  const active = state.tabs.find((tab) => tab.id === state.activeTabId);
+  if (active?.section === "requests" && !el.requestDetail.hidden) {
+    closeTab(active.id);
+    return true;
+  }
+  return false;
+}
+
+function wrapIndex(current, step, length) {
+  if (current === -1) return step > 0 ? 0 : length - 1;
+  return (current + step + length) % length;
+}
+
+// Selects the request above/below the current one in the order the list shows.
+// Stops at either end like DevTools instead of wrapping.
+function selectAdjacentRequest(step) {
+  const entries = sortRequestEntries(filteredRequestEntries());
+  if (!entries.length) return;
+  const current =
+    state.selectedSection === "requests"
+      ? entries.findIndex(([path]) => path === state.selectedPath)
+      : -1;
+  const next =
+    current === -1
+      ? step > 0
+        ? 0
+        : entries.length - 1
+      : Math.min(Math.max(current + step, 0), entries.length - 1);
+  if (next !== current) openFile(entries[next][0], "requests");
+}
+
+function arrowNavigatesRequests(target) {
+  if (isTypingTarget(target) || !el.quickPicker.hidden || menuOpen()) return false;
+  if (settingsOwns(target)) return false;
+  const inList = target instanceof Element && target.closest("#network-panel");
+  return state.selectedSection === "requests" || Boolean(inList);
+}
+
+// Cycles the tabs of the front-most view: the settings categories, the request
+// detail tabs (Headers, Payload, ...), or else the open editor tabs.
+function cycleTabs(step, target) {
+  if (settingsOwns(target)) {
+    const nav = document.getElementById("es-nav");
+    const items = [...nav.querySelectorAll(".es-nav-item")];
+    if (nav.hidden || !items.length) return;
+    const current = items.findIndex((item) => item.classList.contains("active"));
+    items[wrapIndex(current, step, items.length)].click();
+    return;
+  }
+  if (state.selectedSection === "requests" && !el.requestDetail.hidden) {
+    const buttons = [...el.requestDetailTabs.querySelectorAll("button:not([hidden])")];
+    if (buttons.length < 2) return;
+    const current = buttons.findIndex((b) => b.dataset.requestTab === state.requestDetailTab);
+    state.requestDetailTab = buttons[wrapIndex(current, step, buttons.length)].dataset.requestTab;
+    showSelectedRequestTab();
+    return;
+  }
+  const tabs = tabsForWorkspace(state.workspace);
+  if (tabs.length < 2) return;
+  const current = tabs.findIndex((tab) => tab.id === state.activeTabId);
+  const next = tabs[wrapIndex(current, step, tabs.length)];
+  state.activeTabId = next.id;
+  renderTabs();
+  selectFile(next.path, next.section);
+}
+
 document.addEventListener(
   "keydown",
   (event) => {
     if (!panelVisible || !document.hasFocus()) return;
     const modifier = event.ctrlKey || event.metaKey;
     const key = event.key.toLocaleLowerCase();
+    if (event.key === "Escape") {
+      if (!modifier && !event.altKey && !event.shiftKey && dismissTopLayer(event)) {
+        swallowShortcut(event);
+      }
+      return;
+    }
     // Format the open file: Ctrl+Shift+F (and VS Code's Shift+Alt+F).
     const ctrlShiftF = modifier && event.shiftKey && !event.altKey && key === "f";
     const altShiftF = !modifier && event.shiftKey && event.altKey && key === "f";
@@ -293,7 +444,31 @@ document.addEventListener(
       window.PanelLayout.toggleDock("right");
       return;
     }
+    if (
+      event.altKey &&
+      !modifier &&
+      !event.shiftKey &&
+      (key === "arrowleft" || key === "arrowright")
+    ) {
+      // Option+Arrow moves by word in Mac text fields; plain Alt+Arrow is free
+      // everywhere else, including inside Monaco.
+      const target = event.target;
+      const inMonaco = target instanceof Element && target.closest(".monaco-editor");
+      const typing = isTypingTarget(target) && !(inMonaco && !IS_MAC);
+      if (!typing && el.quickPicker.hidden && !menuOpen()) {
+        swallowShortcut(event);
+        cycleTabs(key === "arrowright" ? 1 : -1, target);
+      }
+      return;
+    }
     if (event.altKey) return;
+    if (!modifier && !event.shiftKey && (key === "arrowup" || key === "arrowdown")) {
+      if (arrowNavigatesRequests(event.target)) {
+        swallowShortcut(event);
+        selectAdjacentRequest(key === "arrowdown" ? 1 : -1);
+      }
+      return;
+    }
     if (modifier && event.shiftKey && key === "h") {
       swallowShortcut(event);
       setWorkspaceSearchOpen(true);
@@ -322,11 +497,6 @@ document.addEventListener(
     if (modifier && !event.shiftKey && event.key === ",") {
       swallowShortcut(event);
       window.EditorSettingsPanel?.toggle();
-      return;
-    }
-    if (event.key === "Escape" && !el.quickPicker.hidden) {
-      swallowShortcut(event);
-      closeQuickPicker();
     }
   },
   true
