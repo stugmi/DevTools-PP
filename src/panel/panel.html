@@ -526,6 +526,7 @@
                   <nav id="request-detail-tabs" aria-label="Request detail sections">
                     <button type="button" data-request-tab="headers" class="active">Headers</button>
                     <button type="button" data-request-tab="payload">Payload</button>
+                    <button type="button" data-request-tab="preview">Preview</button>
                     <button type="button" data-request-tab="response">Response</button>
                     <button type="button" data-request-tab="cookies">Cookies</button>
                     <button type="button" data-request-tab="timing">Timing</button>
@@ -549,16 +550,19 @@
                     <div id="request-payload-tree" class="json-tree-host" hidden></div>
                     <div id="request-payload-viewer" class="request-viewer-host"></div>
                   </div>
-                  <div id="request-detail-panel-response" class="request-detail-panel" hidden>
-                    <div id="request-response-tree" class="json-tree-host" hidden></div>
-                    <div id="request-response-viewer" class="request-viewer-host"></div>
+                  <div id="request-detail-panel-preview" class="request-detail-panel" hidden>
                     <iframe
-                      id="request-response-frame"
+                      id="request-preview-frame"
                       class="request-preview-frame"
                       title="Response preview"
                       sandbox="allow-same-origin"
                       hidden
                     ></iframe>
+                    <div id="request-preview-message" hidden></div>
+                  </div>
+                  <div id="request-detail-panel-response" class="request-detail-panel" hidden>
+                    <div id="request-response-tree" class="json-tree-host" hidden></div>
+                    <div id="request-response-viewer" class="request-viewer-host"></div>
                   </div>
                   <div id="request-detail-panel-cookies" class="request-detail-panel" hidden></div>
                   <div id="request-detail-panel-timing" class="request-detail-panel" hidden></div>
@@ -642,6 +646,13 @@
                     />
                   </svg>
                 </button>
+                <select
+                  id="select-request-lang"
+                  class="footer-request-select"
+                  title="Syntax highlighting language (Auto detects from content type, then content)"
+                  aria-label="Syntax highlighting language"
+                  hidden
+                ></select>
                 <span id="preview-meta"></span>
               </div>
               <div id="preview-footer-right">

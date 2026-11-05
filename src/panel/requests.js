@@ -232,8 +232,72 @@ function rawHeaders(startLine, headers) {
   return [startLine, ...(headers || []).map(({ name, value }) => `${name}: ${value}`)].join("\n");
 }
 
-function requestBodyLanguage(mimeType) {
-  return langFromContentType(mimeType) || "plaintext";
+// Languages offered by the footer override. "auto" (the default) detects from
+// the MIME type, then the body content, and falls back to plain text.
+const BODY_LANG_OPTIONS = [
+  ["plaintext", "Plain text"],
+  ["json", "JSON"],
+  ["javascript", "JavaScript"],
+  ["typescript", "TypeScript"],
+  ["html", "HTML"],
+  ["xml", "XML"],
+  ["css", "CSS"],
+  ["yaml", "YAML"],
+  ["markdown", "Markdown"],
+  ["graphql", "GraphQL"],
+  ["shell", "Shell"],
+];
+
+// React Server Components "flight" lines, e.g. `1:"$Sreact.fragment"`,
+// `0:{"buildId":...}`, `11:I[51957,[...],""]`, `2:T179d,...`.
+const FLIGHT_LINE = /^[0-9a-f]+:(?:[[{"]|I\[|HL\[|T[0-9a-f]+,|null$|true$|false$|-?\d)/;
+const JS_START =
+  /^(?:["']use strict["']|\/\*|\/\/|!function|\(function|\(\(|(?:var|let|const|class|import|export)[\s{*]|(?:async\s+)?function[\s(*])/;
+
+// Content-based guess used when the MIME type says nothing useful (a custom
+// type like text/x-component, text/plain, or none at all). Returns null when
+// nothing is recognised so the caller can fall back to plain text.
+function sniffBodyLang(body) {
+  if (body !== null && typeof body === "object") return "json";
+  if (typeof body !== "string") return null;
+  const head = body.slice(0, 4096).trimStart();
+  if (!head) return null;
+  if (head[0] === "{" || head[0] === "[") {
+    if (body.length <= FORMAT_BODY_LIMIT) {
+      try {
+        JSON.parse(body);
+        return "json";
+      } catch {
+        // not plain JSON -- keep sniffing
+      }
+    }
+  }
+  if (/^<!doctype\s+html|^<html[\s>]/i.test(head)) return "html";
+  if (/^<\?xml|^<svg[\s>]/i.test(head)) return "xml";
+  if (FLIGHT_LINE.test(head) || JS_START.test(head)) return "javascript";
+  return null;
+}
+
+function requestBodyLanguage(mimeType, body) {
+  try {
+    return langFromContentType(mimeType) || sniffBodyLang(body) || "plaintext";
+  } catch {
+    return "plaintext";
+  }
+}
+
+function requestBodyOverrides(entry) {
+  return (entry._bodyLang ??= { payload: "auto", response: "auto" });
+}
+
+// Language for a Payload/Response body: the manual override if one is set,
+// otherwise auto-detection. `forced` tells the formatter not to second-guess it.
+function bodyLanguageFor(entry, tab) {
+  const { request, response } = entry._record;
+  const side = tab === "response" ? response : request;
+  const override = requestBodyOverrides(entry)[tab];
+  if (override && override !== "auto") return { lang: override, forced: true };
+  return { lang: requestBodyLanguage(side.bodyMimeType, side.body), forced: false };
 }
 
 function textForBody(value) {
@@ -248,9 +312,11 @@ const FORMAT_BODY_LIMIT = 2_000_000;
 // Pretty-prints a request/response body for the Source view. JSON is detected
 // by content as well as MIME type (tRPC/GraphQL clients often send JSON as
 // text/plain); form-encoded bodies become one decoded `key=value` per line.
-// Anything that can't be formatted is returned unchanged.
-function formatBodyText(text, lang, mime) {
+// Anything that can't be formatted is returned unchanged. `forced` (a manual
+// language override) disables the content-based guessing.
+function formatBodyText(text, lang, mime, forced = false) {
   if (typeof text !== "string" || !text || text.length > FORMAT_BODY_LIMIT) return { text, lang };
+  if (forced && lang === "plaintext") return { text, lang };
   const trimmed = text.trim();
   if (lang === "json" || (lang === "plaintext" && /^[[{]/.test(trimmed))) {
     try {
@@ -269,7 +335,9 @@ function formatBodyText(text, lang, mime) {
     };
     return { text: trimmed.split("&").map(decode).join("\n") + "\n", lang };
   }
-  if (lang !== "json" && lang !== "plaintext") {
+  // RSC flight data is line-oriented, not JS statements -- the beautifier would mangle it.
+  const flight = /x-component/i.test(mime || "") || FLIGHT_LINE.test(trimmed.slice(0, 4096));
+  if (lang !== "json" && lang !== "plaintext" && !flight) {
     const pretty = tryPretty(text, lang);
     if (pretty.ok) return { text: pretty.content, lang };
   }
@@ -387,25 +455,240 @@ function requestDetailPanel(tab) {
   return document.getElementById(`request-detail-panel-${tab}`);
 }
 
-function bodyParseKind(bodyValue, lang, allowHtml) {
-  if (allowHtml && lang === "html" && typeof bodyValue === "string") return "html";
-  if (bodyValue !== null && typeof bodyValue === "object") return "tree";
-  return "none";
+// ── Markup tree view (Parsed mode for HTML/XML bodies) ──────────────────────
+
+const HTML_VOID_ELEMENTS = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "source",
+  "track",
+  "wbr",
+]);
+
+function markupSpan(className, text) {
+  const span = document.createElement("span");
+  span.className = className;
+  span.textContent = text;
+  return span;
+}
+
+// Child nodes worth a row: elements, non-blank text, comments, CDATA and
+// processing instructions. Indentation-only text nodes are dropped.
+function markupChildren(node) {
+  return Array.from(node.childNodes).filter((child) => {
+    if (child.nodeType === Node.TEXT_NODE) return child.data.trim() !== "";
+    return [
+      Node.ELEMENT_NODE,
+      Node.CDATA_SECTION_NODE,
+      Node.COMMENT_NODE,
+      Node.PROCESSING_INSTRUCTION_NODE,
+      Node.DOCUMENT_TYPE_NODE,
+    ].includes(child.nodeType);
+  });
+}
+
+function markupTagName(element, isHtml) {
+  return isHtml ? element.localName : element.nodeName;
+}
+
+// `<name attr="value" ...>` (or `.../>` when `selfClose`) as one inline span.
+function markupOpenTag(element, isHtml, selfClose = false) {
+  const tag = document.createElement("span");
+  tag.className = "markup-tag";
+  tag.append(
+    markupSpan("markup-bracket", "<"),
+    markupSpan("markup-name", markupTagName(element, isHtml))
+  );
+  for (const attr of element.attributes) {
+    tag.append(" ", markupSpan("markup-attr", attr.name));
+    tag.append(markupSpan("markup-bracket", '="'));
+    tag.append(markupSpan("markup-attr-value", attr.value));
+    tag.append(markupSpan("markup-bracket", '"'));
+  }
+  tag.append(markupSpan("markup-bracket", selfClose ? "/>" : ">"));
+  return tag;
+}
+
+function markupCloseTag(element, isHtml) {
+  const tag = document.createElement("span");
+  tag.className = "markup-tag";
+  tag.append(
+    markupSpan("markup-bracket", "</"),
+    markupSpan("markup-name", markupTagName(element, isHtml)),
+    markupSpan("markup-bracket", ">")
+  );
+  return tag;
+}
+
+function markupLeafText(node) {
+  switch (node.nodeType) {
+    case Node.TEXT_NODE:
+      return markupSpan("json-value-string", node.data.trim());
+    case Node.CDATA_SECTION_NODE:
+      return markupSpan("json-value-string", `<![CDATA[${node.data}]]>`);
+    case Node.COMMENT_NODE:
+      return markupSpan("markup-comment", `<!--${node.data}-->`);
+    case Node.PROCESSING_INSTRUCTION_NODE:
+      return markupSpan("markup-comment", `<?${node.target} ${node.data}?>`);
+    case Node.DOCUMENT_TYPE_NODE:
+      return markupSpan("markup-comment", `<!DOCTYPE ${node.name}>`);
+    default:
+      return markupSpan("markup-comment", node.textContent);
+  }
+}
+
+function markupRow(...content) {
+  const row = document.createElement("div");
+  row.className = "json-row";
+  row.append(...content);
+  return row;
+}
+
+function markupSpacer() {
+  return markupSpan("json-toggle-spacer", "");
+}
+
+// One DOM node of the tree. Elements whose only content is text stay on one
+// line; others expand to their children plus a closing-tag row. Children are
+// built on first expand so a large document stays cheap until explored.
+function buildMarkupNode(node, isHtml, expanded = false) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "json-node";
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    wrapper.appendChild(markupRow(markupSpacer(), markupLeafText(node)));
+    return wrapper;
+  }
+
+  const children = markupChildren(node);
+  const name = markupTagName(node, isHtml);
+  if (children.length === 0) {
+    const selfClose = !isHtml;
+    const row = markupRow(markupSpacer(), markupOpenTag(node, isHtml, selfClose));
+    if (isHtml && !HTML_VOID_ELEMENTS.has(name)) {
+      row.lastChild.appendChild(markupCloseTag(node, isHtml));
+    }
+    wrapper.appendChild(row);
+    return wrapper;
+  }
+  const onlyText =
+    children.length === 1 &&
+    (children[0].nodeType === Node.TEXT_NODE || children[0].nodeType === Node.CDATA_SECTION_NODE);
+  if (onlyText) {
+    const line = markupOpenTag(node, isHtml);
+    line.append(markupLeafText(children[0]), markupCloseTag(node, isHtml));
+    wrapper.appendChild(markupRow(markupSpacer(), line));
+    return wrapper;
+  }
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "json-toggle";
+  const preview = document.createElement("span");
+  preview.className = "json-preview";
+  preview.textContent = `…</${name}>`;
+  const row = markupRow(toggle, markupOpenTag(node, isHtml), preview);
+
+  const childHost = document.createElement("div");
+  childHost.className = "json-children collapsed";
+  const close = markupRow(markupSpacer(), markupCloseTag(node, isHtml));
+  close.classList.add("markup-close");
+
+  let built = false;
+  const setExpanded = (open) => {
+    if (open && !built) {
+      built = true;
+      childHost.append(...children.map((child) => buildMarkupNode(child, isHtml)));
+    }
+    childHost.classList.toggle("collapsed", !open);
+    row.classList.toggle("expanded", open);
+  };
+  row.addEventListener("click", () => setExpanded(!row.classList.contains("expanded")));
+  setExpanded(expanded);
+
+  wrapper.append(row, childHost, close);
+  return wrapper;
+}
+
+// The document's top-level nodes (doctype, comments, root element), with the
+// root element expanded like the JSON tree's root properties.
+function buildMarkupTree({ doc, isHtml, error }) {
+  const container = document.createElement("div");
+  container.className = "json-tree";
+  if (error) {
+    container.appendChild(requestDetailEmpty(`Could not parse XML: ${error}`));
+    return container;
+  }
+  for (const node of markupChildren(doc)) {
+    container.appendChild(buildMarkupNode(node, isHtml, node === doc.documentElement));
+  }
+  return container;
+}
+
+// What the Parsed view shows for a body: a JSON value (structured bodies and
+// JSON text) or a parsed HTML/XML document; null when there is nothing to parse.
+function parseBody(body, lang) {
+  if (body == null || body === "") return null;
+  if (typeof body === "object") return { kind: "json", value: body };
+  if (typeof body !== "string") return null;
+  if (lang === "json") {
+    try {
+      return { kind: "json", value: JSON.parse(body) };
+    } catch {
+      return null;
+    }
+  }
+  if (lang === "html" || lang === "xml") {
+    const isHtml = lang === "html";
+    const doc = new DOMParser().parseFromString(body, isHtml ? "text/html" : "application/xml");
+    const failure = isHtml ? null : doc.querySelector("parsererror");
+    const error = failure
+      ? (failure.querySelector("div") ?? failure).textContent.trim() || "invalid XML"
+      : null;
+    return { kind: "markup", doc, isHtml, error };
+  }
+  return null;
+}
+
+// Parsing is cached per tab until the body or the chosen language changes, so
+// toggle-visibility checks and re-renders don't re-parse a large body.
+function parsedBodyFor(entry, tab) {
+  const side = tab === "response" ? entry._record.response : entry._record.request;
+  const { lang } = bodyLanguageFor(entry, tab);
+  const cache = (entry._parsedBody ??= {});
+  const hit = cache[tab];
+  if (hit && hit.body === side.body && hit.lang === lang) return hit.result;
+  const result = parseBody(side.body, lang);
+  cache[tab] = { body: side.body, lang, result };
+  return result;
 }
 
 // Payload's and Response's Source/Parsed toggle are independent -- keyed by
 // tab so switching tabs (or requests) never leaks one's toggle state into
 // the other.
-function bodyPreviewState() {
-  return (state.requestBodyPreviewByTab ??= { payload: false, response: false });
+function bodyParsedState() {
+  return (state.requestBodyParsedByTab ??= { payload: false, response: false });
 }
 
-function getBodyPreview(tab) {
-  return !!bodyPreviewState()[tab];
+function getBodyParsed(tab) {
+  return !!bodyParsedState()[tab];
 }
 
-function setBodyPreview(tab, value) {
-  bodyPreviewState()[tab] = value;
+function setBodyParsed(tab, value) {
+  bodyParsedState()[tab] = value;
+}
+
+// The parsed body the tab currently shows instead of source text: only when
+// Parsed is selected and the body actually parses.
+function shownParsedBody(entry, tab) {
+  return getBodyParsed(tab) ? parsedBodyFor(entry, tab) : null;
 }
 
 function updateBodyViewToggle(entry) {
@@ -416,17 +699,11 @@ function updateBodyViewToggle(entry) {
     toggle.hidden = true;
     return;
   }
-  const record = entry._record;
-  const isResponse = tab === "response";
-  const bodyValue = isResponse ? record.response.body : record.request.body;
-  const mime = isResponse ? record.response.bodyMimeType : record.request.bodyMimeType;
-  const lang = requestBodyLanguage(mime);
-  const kind = bodyParseKind(bodyValue, lang, isResponse);
-  toggle.hidden = kind === "none";
-  if (kind === "none") return;
+  toggle.hidden = isBodyPlaceholder(entry, tab) || !parsedBodyFor(entry, tab);
+  if (toggle.hidden) return;
 
   const buttons = toggle.querySelectorAll("button");
-  const parsedActive = getBodyPreview(tab);
+  const parsedActive = getBodyParsed(tab);
   buttons[0].classList.toggle("active", !parsedActive);
   buttons[1].classList.toggle("active", parsedActive);
 }
@@ -604,6 +881,7 @@ function availableRequestTabs(entry) {
   ) {
     tabs.push("payload");
   }
+  if (responsePreviewKind(entry)) tabs.push("preview");
   tabs.push("response");
   if (cookies.request.length || cookies.response.length) tabs.push("cookies");
   tabs.push("timing");
@@ -611,37 +889,24 @@ function availableRequestTabs(entry) {
 }
 
 // Shared by Payload/Response: renders one body area that's either the raw
-// text viewer, a JSON tree, or (Response only) a sandboxed HTML preview
-// frame, showing exactly one of the three depending on the Source/Parsed
-// toggle and what the content actually is.
-function renderBodyArea({ treeHost, viewerHost, frame, bodyValue, lang, mime, wrap, preview }) {
-  const kind = bodyParseKind(bodyValue, lang, !!frame);
-  const showParsed = kind !== "none" && !!preview;
-
-  if (frame) {
-    frame.hidden = !(showParsed && kind === "html");
-    if (showParsed && kind === "html") frame.srcdoc = bodyValue;
-    else frame.removeAttribute("srcdoc");
+// text viewer or the parsed tree (JSON value or HTML/XML document), depending
+// on the Source/Parsed toggle and whether the body parses at all.
+function renderBodyArea({ entry, tab, treeHost, viewerHost, sourceText, lang, forced, mime }) {
+  const parsed = shownParsedBody(entry, tab);
+  treeHost.hidden = !parsed;
+  viewerHost.hidden = !!parsed;
+  if (parsed) {
+    treeHost.replaceChildren(
+      parsed.kind === "json" ? buildJsonTree(parsed.value) : buildMarkupTree(parsed)
+    );
+    return;
   }
-
-  treeHost.hidden = !(showParsed && kind === "tree");
-  if (showParsed && kind === "tree") {
-    treeHost.replaceChildren(buildJsonTree(bodyValue));
-  }
-
-  const showViewer = !(showParsed && (kind === "html" || kind === "tree"));
-  viewerHost.hidden = !showViewer;
-  if (showViewer) {
-    const viewer =
-      viewerHost === document.getElementById("request-payload-viewer")
-        ? ensurePayloadViewer()
-        : ensureResponseViewer();
-    const shown = state.requestDetailFormat
-      ? formatBodyText(textForBody(bodyValue), lang || "plaintext", mime)
-      : { text: textForBody(bodyValue), lang: lang || "plaintext" };
-    viewer.setContent(shown.text, shown.lang);
-    viewer.setWrap(!!wrap);
-  }
+  const viewer = tab === "payload" ? ensurePayloadViewer() : ensureResponseViewer();
+  const shown = state.requestDetailFormat
+    ? formatBodyText(sourceText, lang || "plaintext", mime, forced)
+    : { text: sourceText, lang: lang || "plaintext" };
+  viewer.setContent(shown.text, shown.lang);
+  viewer.setWrap(!!state.requestDetailWrap);
 }
 
 function renderPayloadPanel(entry) {
@@ -675,71 +940,108 @@ function renderPayloadPanel(entry) {
   }
 
   splitter.hidden = !meta.childElementCount;
-  const preview = getBodyPreview("payload");
-  const bodyValue = preview ? request.body : (entry._rawRequestBody ?? textForBody(request.body));
   renderBodyArea({
+    entry,
+    tab: "payload",
     treeHost,
     viewerHost,
-    frame: null,
-    bodyValue,
-    lang: requestBodyLanguage(request.bodyMimeType),
+    sourceText: entry._rawRequestBody ?? textForBody(request.body),
+    ...bodyLanguageFor(entry, "payload"),
     mime: request.bodyMimeType,
-    wrap: state.requestDetailWrap,
-    preview,
   });
+}
+
+// Status text shown instead of the response body (by Response and Preview)
+// while it loads, when it can't be read, or when there is none; else null.
+function responsePlaceholderText(entry) {
+  if (entry._responseStatus === "loading") return "Loading response content…";
+  if (entry._responseStatus === "unavailable") {
+    return requestTypeFor(entry) === "socket"
+      ? "Streaming socket bodies are not requested; handshake headers remain available."
+      : "Response content is unavailable in the DevTools cache.";
+  }
+  const { body } = entry._record.response;
+  if (body == null || body === "") return "Response has no body";
+  return null;
 }
 
 function renderResponsePanel(entry) {
   const panel = requestDetailPanel("response");
   if (!panel) return;
-  const record = entry._record;
-  const response = record.response;
+  const response = entry._record.response;
   const treeHost = document.getElementById("request-response-tree");
   const viewerHost = document.getElementById("request-response-viewer");
-  const frame = document.getElementById("request-response-frame");
 
-  const showPlainText = (text) => {
+  const placeholder = responsePlaceholderText(entry);
+  if (placeholder) {
     treeHost.hidden = true;
-    frame.hidden = true;
-    frame.removeAttribute("srcdoc");
     viewerHost.hidden = false;
     const viewer = ensureResponseViewer();
-    viewer.setContent(text, "plaintext");
+    viewer.setContent(placeholder, "plaintext");
     viewer.setWrap(!!state.requestDetailWrap);
-  };
-
-  if (entry._responseStatus === "loading") {
-    showPlainText("Loading response content…");
-    return;
-  }
-  if (entry._responseStatus === "unavailable") {
-    showPlainText(
-      requestTypeFor(entry) === "socket"
-        ? "Streaming socket bodies are not requested; handshake headers remain available."
-        : "Response content is unavailable in the DevTools cache."
-    );
-    return;
-  }
-  if (response.body == null || response.body === "") {
-    showPlainText("Response has no body");
     return;
   }
 
-  const lang = requestBodyLanguage(response.bodyMimeType);
-  const preview = getBodyPreview("response");
-  const bodyValue = preview
-    ? response.body
-    : (entry._rawResponseBody ?? textForBody(response.body));
   renderBodyArea({
+    entry,
+    tab: "response",
     treeHost,
     viewerHost,
-    frame,
-    bodyValue,
-    lang,
+    sourceText: entry._rawResponseBody ?? textForBody(response.body),
+    ...bodyLanguageFor(entry, "response"),
     mime: response.bodyMimeType,
-    wrap: state.requestDetailWrap,
-    preview,
   });
+}
+
+// What the Preview tab renders: "html" (the page itself, HTML by MIME type,
+// content sniffing or the language override), "svg" (SVG by MIME type or a
+// root <svg> in XML), "image" (any other image/* type); null for the rest.
+const SVG_ROOT = /^(?:<\?xml[\s\S]*?\?>|<!--[\s\S]*?-->|<!doctype[^>]*>|\s)*<svg[\s>]/i;
+
+function responsePreviewKind(entry) {
+  const { body, bodyMimeType } = entry._record.response;
+  const mime = (bodyMimeType || "").split(";")[0].trim().toLowerCase();
+  if (mime === "image/svg+xml") return "svg";
+  if (mime.startsWith("image/")) return "image";
+  const { lang } = bodyLanguageFor(entry, "response");
+  if (lang === "html") return "html";
+  if (lang === "xml" && typeof body === "string" && SVG_ROOT.test(body.slice(0, 4096))) {
+    return "svg";
+  }
+  return null;
+}
+
+// Document for the sandboxed preview frame (no scripts run), or null when the
+// body can't be shown that way (e.g. an image body that isn't base64).
+function responsePreviewDocument(entry) {
+  const { body, bodyMimeType } = entry._record.response;
+  const kind = responsePreviewKind(entry);
+  if (kind === "image") {
+    if (!body || typeof body !== "object" || body.encoding !== "base64") return null;
+    const mime = (bodyMimeType || "").split(";")[0].trim();
+    return (
+      "<!doctype html><style>html,body{height:100%;margin:0}" +
+      "body{display:grid;place-items:center}img{max-width:100%;max-height:100%}</style>" +
+      `<img src="data:${mime};base64,${body.data}" alt="">`
+    );
+  }
+  return typeof body === "string" ? body : null;
+}
+
+function renderPreviewPanel(entry) {
+  const frame = document.getElementById("request-preview-frame");
+  const message = document.getElementById("request-preview-message");
+  const text = responsePlaceholderText(entry);
+  const doc = text ? null : responsePreviewDocument(entry);
+  frame.hidden = doc == null;
+  message.hidden = doc != null;
+  if (doc == null) {
+    frame.removeAttribute("srcdoc");
+    message.replaceChildren(requestDetailEmpty(text || "Response can't be previewed"));
+    return;
+  }
+  // Re-renders (live capture updates, toggles) must not reload the page.
+  if (frame.srcdoc !== doc) frame.srcdoc = doc;
 }
 
 function renderTimingPanel(entry) {
@@ -763,7 +1065,7 @@ document.getElementById("request-body-view-toggle")?.addEventListener("click", (
   if (!button) return;
   const tab = state.requestDetailTab;
   if (tab !== "payload" && tab !== "response") return;
-  setBodyPreview(tab, button.dataset.bodyView === "parsed");
+  setBodyParsed(tab, button.dataset.bodyView === "parsed");
   showSelectedRequestTab();
 });
 
@@ -813,7 +1115,7 @@ function setRequestWrap(enabled) {
 function updateRequestFooterControls(entry) {
   const tab = state.requestDetailTab;
   const bodyTab = tab === "payload" || tab === "response";
-  const sourceView = bodyTab && !getBodyPreview(tab) && !isBodyPlaceholder(entry, tab);
+  const sourceView = bodyTab && !isBodyPlaceholder(entry, tab) && !shownParsedBody(entry, tab);
   for (const [button, on] of [
     [el.btnRequestFormat, state.requestDetailFormat],
     [el.btnRequestWrap, state.requestDetailWrap],
@@ -822,18 +1124,38 @@ function updateRequestFooterControls(entry) {
     button.classList.toggle("active", Boolean(on));
     button.setAttribute("aria-pressed", on ? "true" : "false");
   }
+
+  const select = el.selRequestLang;
+  select.hidden = !(bodyTab && !isBodyPlaceholder(entry, tab));
+  if (select.hidden) return;
+  const override = requestBodyOverrides(entry)[tab];
+  const { lang } = bodyLanguageFor(entry, tab);
+  const label = BODY_LANG_OPTIONS.find(([id]) => id === lang)?.[1] ?? lang;
+  select.options[0].textContent = override === "auto" ? `Auto (${label})` : "Auto";
+  select.value = override;
 }
 
-// True when the response tab shows a status message instead of a real body.
-function isBodyPlaceholder(entry, tab) {
-  if (tab !== "response") return false;
-  const { response } = entry._record;
-  return (
-    entry._responseStatus === "loading" ||
-    entry._responseStatus === "unavailable" ||
-    response.body == null ||
-    response.body === ""
+function populateRequestLangSelect() {
+  const select = el.selRequestLang;
+  select.replaceChildren(
+    ...[["auto", "Auto"], ...BODY_LANG_OPTIONS].map(([id, label]) => new Option(label, id))
   );
+  select.addEventListener("change", () => {
+    const tab = state.requestDetailTab;
+    const entry = state.requestTree[state.selectedPath];
+    if (!entry || (tab !== "payload" && tab !== "response")) return;
+    requestBodyOverrides(entry)[tab] = select.value;
+    showSelectedRequestTab();
+  });
+}
+
+// True when the Payload/Response tab shows a status message instead of a real body.
+function isBodyPlaceholder(entry, tab) {
+  if (tab === "payload") {
+    const { body } = entry._record.request;
+    return body == null || body === "";
+  }
+  return tab === "response" && responsePlaceholderText(entry) != null;
 }
 
 function renderRequestTabs(entry) {
@@ -848,7 +1170,7 @@ function renderRequestTabs(entry) {
 
 function renderRequestDetailBody(entry) {
   renderRequestTabs(entry);
-  for (const tab of ["headers", "payload", "response", "cookies", "timing"]) {
+  for (const tab of ["headers", "payload", "preview", "response", "cookies", "timing"]) {
     const panel = requestDetailPanel(tab);
     if (panel) panel.hidden = tab !== state.requestDetailTab;
   }
@@ -857,6 +1179,7 @@ function renderRequestDetailBody(entry) {
 
   if (state.requestDetailTab === "headers") return renderHeadersPanel(entry);
   if (state.requestDetailTab === "payload") return renderPayloadPanel(entry);
+  if (state.requestDetailTab === "preview") return renderPreviewPanel(entry);
   if (state.requestDetailTab === "response") return renderResponsePanel(entry);
   if (state.requestDetailTab === "cookies") return renderCookiesPanel(entry);
   return renderTimingPanel(entry);
@@ -904,7 +1227,8 @@ async function showSelectedRequestTab() {
   const entry = state.requestTree[state.selectedPath];
   if (!entry) return;
   renderRequestDetails(entry);
-  if (state.requestDetailTab !== "response" || entry._responseStatus !== "idle") return;
+  const bodyTab = state.requestDetailTab === "response" || state.requestDetailTab === "preview";
+  if (!bodyTab || entry._responseStatus !== "idle") return;
   const pending = loadRequestResponse(entry);
   renderRequestDetailBody(entry);
   await pending;
@@ -915,3 +1239,4 @@ async function showSelectedRequestTab() {
 
 el.btnRequestFormat.addEventListener("click", () => setRequestFormat(!state.requestDetailFormat));
 el.btnRequestWrap.addEventListener("click", () => setRequestWrap(!state.requestDetailWrap));
+populateRequestLangSelect();

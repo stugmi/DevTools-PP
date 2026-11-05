@@ -181,6 +181,7 @@ const el = {
   requestDetailTabs: $("request-detail-tabs"),
   btnRequestFormat: $("btn-request-format"),
   btnRequestWrap: $("btn-request-wrap"),
+  selRequestLang: $("select-request-lang"),
   requestDetailBody: $("request-detail-body"),
   previewFooter: $("preview-footer"),
   previewMeta: $("preview-meta"),

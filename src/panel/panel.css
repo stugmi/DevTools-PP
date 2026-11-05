@@ -2787,6 +2787,7 @@ kbd {
 }
 
 #request-detail-panel-payload:not([hidden]),
+#request-detail-panel-preview:not([hidden]),
 #request-detail-panel-response:not([hidden]) {
   display: flex;
   flex-direction: column;
@@ -2855,11 +2856,11 @@ kbd {
   border-radius: 2px;
 }
 
-.json-node:has(> .json-children) > .json-row {
+.json-node:has(> .json-children) > .json-row:first-child {
   cursor: pointer;
 }
 
-.json-node:has(> .json-children) > .json-row:hover {
+.json-node:has(> .json-children) > .json-row:first-child:hover {
   background: var(--bg-3);
 }
 
@@ -2931,6 +2932,37 @@ kbd {
 .json-value-undefined {
   color: var(--text-dim);
   font-style: italic;
+}
+
+.markup-tag {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.markup-bracket {
+  color: var(--text-dim);
+}
+
+.markup-name {
+  color: var(--dir-color);
+}
+
+.markup-attr {
+  color: var(--type-wasm);
+}
+
+.markup-attr-value {
+  color: var(--green);
+}
+
+.markup-comment {
+  overflow-wrap: anywhere;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.json-row:not(.expanded) ~ .markup-close {
+  display: none;
 }
 
 /* ── Headers tab: DevTools-style sections and key/value rows ─────────────── */
@@ -3313,9 +3345,26 @@ kbd {
   display: none;
 }
 
-/* Request body controls (Format / Wrap) live in the footer with the editor's. */
-.footer-request-btn[hidden] {
+/* Request body controls (Format / Wrap / Language) live in the footer with the editor's. */
+.footer-request-btn[hidden],
+.footer-request-select[hidden] {
   display: none;
+}
+
+.footer-request-select {
+  height: 20px;
+  max-width: 140px;
+  padding: 0 4px;
+  background: var(--bg-3);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.footer-request-select:hover {
+  color: var(--text-primary);
 }
 
 #request-payload-meta {

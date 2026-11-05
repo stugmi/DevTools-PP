@@ -90,14 +90,22 @@ function detectLang(path) {
   return EXT_TO_LANGUAGE[ext] || null;
 }
 
+// Maps a Content-Type to a Monaco language id, or null when the type says
+// nothing useful (text/plain, unknown vendor types, ...) so callers can sniff.
 function langFromContentType(contentType) {
   if (!contentType) return null;
   const mime = contentType.split(";")[0].trim().toLowerCase();
-  if (mime === "application/json" || mime.endsWith("+json")) return "json";
-  if (mime === "text/javascript" || mime === "application/javascript") return "javascript";
+  if (/^(?:application|text)\/(?:x-)?json$/.test(mime) || mime.endsWith("+json")) return "json";
+  if (/^(?:application|text)\/(?:x-)?(?:java|ecma)script$/.test(mime)) return "javascript";
+  // React Server Components flight payloads: line-oriented, JS-ish tokens.
+  if (mime === "text/x-component") return "javascript";
+  if (mime === "application/typescript" || mime === "text/typescript") return "typescript";
   if (mime === "text/css") return "css";
   if (mime === "text/html" || mime === "application/xhtml+xml") return "html";
   if (mime === "application/xml" || mime === "text/xml" || mime.endsWith("+xml")) return "xml";
+  if (/^(?:application|text)\/(?:x-)?ya?ml$/.test(mime)) return "yaml";
+  if (mime === "text/markdown" || mime === "text/x-markdown") return "markdown";
+  if (mime === "application/graphql") return "graphql";
   return null;
 }
 
@@ -225,6 +233,11 @@ function prettyFormat(content, lang) {
   }
   if (lang === "html") {
     return b.html(content, BEAUTIFY_OPTS);
+  }
+  if (lang === "xml") {
+    // XML has no inline elements: without this, tags that share a name with
+    // HTML inline ones (<source>, <b>, <span>, ...) are glued onto one line.
+    return b.html(content, { ...BEAUTIFY_OPTS, inline: [] });
   }
   throw new Error("no formatter for " + lang);
 }

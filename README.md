@@ -64,16 +64,20 @@ completed network activity under **Requests**. Requests use a newest-first list 
 tree. Filter the list by domain, type (**JS**, **XHR**, **Socket**, **Wasm**, or **Other**), method,
 and minimum/maximum duration.
 
-Selecting a request opens dedicated **Headers**, **Payload**, **Response**, and **Timing** views.
-**Raw** switches headers and bodies between parsed and wire-oriented text. Each export snapshot
-includes capture time, duration, resource type, URL/query parameters, request method, headers,
-cookies, payload, response status, response headers, timing data, MIME types, and available response
-content. JSON and URL-encoded bodies are structured automatically; other text stays unchanged, and
-binary response data is preserved as base64.
+Selecting a request opens dedicated **Headers**, **Payload**, **Preview**, **Response**, **Cookies**,
+and **Timing** views. **Raw** switches headers between parsed and wire-oriented text. Payload and
+Response bodies toggle between **Source** (highlighted, optionally pretty-formatted text) and
+**Parsed**, a collapsible tree of JSON values or of the HTML/XML document. **Preview** appears for
+HTML, SVG, and image responses and renders them in a sandboxed frame with scripts disabled.
 
-Response content is requested from the DevTools cache only when its **Response** view is opened or
-the request is exported. Socket streams retain their handshake metadata without trying to read an
-unbounded streaming body.
+Each export snapshot includes capture time, duration, resource type, URL/query parameters, request
+method, headers, cookies, payload, response status, response headers, timing data, MIME types, and
+available response content. JSON and URL-encoded bodies are structured automatically; other text
+stays unchanged, and binary response data is preserved as base64.
+
+Response content is requested from the DevTools cache only when its **Response** or **Preview** view
+is opened or the request is exported. Socket streams retain their handshake metadata without trying
+to read an unbounded streaming body.
 
 Choose **ZIP** or **TAR** format in the toolbar before exporting.
 
