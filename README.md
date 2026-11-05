@@ -36,4 +36,4 @@ To build from source, see [development](docs/development.md).
 - [Network requests](docs/network.md)
 - [Development](docs/development.md)
 - [How it works](docs/architecture.md)
-- [Releases and changelogs](docs/releases.md)
+- [Changelogs](changelogs/)

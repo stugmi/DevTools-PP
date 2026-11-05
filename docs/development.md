@@ -34,4 +34,4 @@ The build creates a clean unpacked extension, copies local Monaco runtime assets
 
 No VS Code lint or formatter extension is required. Use the commands above for the same checks as CI.
 
-See [architecture](architecture.md) for the source layout and [releases](releases.md) before changing the version.
+See [architecture](architecture.md) for the source layout.
