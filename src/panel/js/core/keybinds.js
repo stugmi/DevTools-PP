@@ -7,11 +7,10 @@
 // Global (dispatched by keyboard.js)
 // [Esc]                Pop the topmost overlay (menu, settings, or request view)
 //                      If no overlays are open, pass through to native DevTools
-// [Ctrl + Shift + F]   Format the open file or request body
-// [Shift + Alt + F]    Same as above (VS Code style)
+// [Shift + Alt + F]    Format the open file or request body
 // [Ctrl + P]           Open the file quick picker
 // [Ctrl + Shift + P]   Open the command palette
-// [Ctrl + Shift + H]   Search across the workspace
+// [Ctrl + Shift + F]   Search across the workspace
 // [Ctrl + ,]           Toggle the settings window
 // [Ctrl + B]           Toggle the left side bar
 // [Ctrl + J]           Toggle the bottom panel
@@ -54,7 +53,7 @@ window.Keybinds = (() => {
     },
     {
       id: "file.format",
-      keys: ["Ctrl+Shift+F", "Shift+Alt+F"],
+      keys: ["Shift+Alt+F"],
       description: "Format the open file",
       scope: "global",
     },
@@ -72,7 +71,7 @@ window.Keybinds = (() => {
     },
     {
       id: "search.workspace",
-      keys: ["Ctrl+Shift+H"],
+      keys: ["Ctrl+Shift+F"],
       description: "Search the workspace",
       scope: "global",
     },

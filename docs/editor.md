@@ -18,19 +18,19 @@ The left sidebar, bottom panel, and right sidebar can be toggled independently. 
 
 Shortcuts apply while the Source Exporter panel has focus. Definitions live in [`keybinds.js`](../src/panel/js/core/keybinds.js).
 
-| Keys                        | Action                                                                           |
-| --------------------------- | -------------------------------------------------------------------------------- |
-| Ctrl+F                      | Find in the current file                                                         |
-| Ctrl+Shift+H                | Search all captured files                                                        |
-| Ctrl+Shift+F or Shift+Alt+F | Toggle pretty-formatting                                                         |
-| Ctrl+P                      | Open a captured file by name                                                     |
-| Ctrl+Shift+P                | Open the command palette                                                         |
-| Ctrl+B                      | Toggle the left sidebar                                                          |
-| Ctrl+J                      | Toggle the bottom panel                                                          |
-| Ctrl+Alt+B                  | Toggle the right sidebar                                                         |
-| Ctrl+,                      | Toggle Settings                                                                  |
-| F12 or Ctrl+click           | Go to the closest preceding declaration or assignment                            |
-| Shift+F12                   | Find references                                                                  |
-| Up / Down                   | Move through the request list when a request is selected                         |
-| Alt+Left / Alt+Right        | Cycle request detail tabs in Network, or editor tabs elsewhere                   |
-| Esc                         | Dismiss the front-most overlay; pass through to native DevTools when none remain |
+| Keys                 | Action                                                                           |
+| -------------------- | -------------------------------------------------------------------------------- |
+| Ctrl+F               | Find in the current file                                                         |
+| Ctrl+Shift+F         | Search all captured files                                                        |
+| Shift+Alt+F          | Toggle pretty-formatting                                                         |
+| Ctrl+P               | Open a captured file by name                                                     |
+| Ctrl+Shift+P         | Open the command palette                                                         |
+| Ctrl+B               | Toggle the left sidebar                                                          |
+| Ctrl+J               | Toggle the bottom panel                                                          |
+| Ctrl+Alt+B           | Toggle the right sidebar                                                         |
+| Ctrl+,               | Toggle Settings                                                                  |
+| F12 or Ctrl+click    | Go to the closest preceding declaration or assignment                            |
+| Shift+F12            | Find references                                                                  |
+| Up / Down            | Move through the request list when a request is selected                         |
+| Alt+Left / Alt+Right | Cycle request detail tabs in Network, or editor tabs elsewhere                   |
+| Esc                  | Dismiss the front-most overlay; pass through to native DevTools when none remain |
