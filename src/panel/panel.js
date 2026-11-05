@@ -332,6 +332,19 @@ function settingsOwns(target) {
   );
 }
 
+// Closes the request view as one unit, like DevTools' detail pane: the preview
+// tab goes away, pinned request tabs stay listed but none is promoted, so the
+// next Esc has nothing left to close and reaches DevTools.
+function dismissRequestView() {
+  state.tabs = state.tabs.filter((tab) => tab.section !== "requests" || tab.pinned);
+  state.activeTabId = null;
+  state.selectedPath = null;
+  state.selectedSection = null;
+  renderTabs();
+  resetPreview();
+  renderTree();
+}
+
 // Closes the front-most dismissible layer. Returns false when there is
 // nothing to close (or a control should handle Esc itself) so the key is left
 // alone.
@@ -353,9 +366,8 @@ function dismissTopLayer(event) {
   }
   const inMonaco = target instanceof Element && target.closest(".monaco-editor");
   if (isTypingTarget(target) && !inMonaco) return false; // e.g. cookie cell edit cancels itself
-  const active = state.tabs.find((tab) => tab.id === state.activeTabId);
-  if (active?.section === "requests" && !el.requestDetail.hidden) {
-    closeTab(active.id);
+  if (state.selectedSection === "requests" && !el.requestDetail.hidden) {
+    dismissRequestView();
     return true;
   }
   return false;
