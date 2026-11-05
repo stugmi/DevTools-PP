@@ -47,6 +47,9 @@ installed. Bun installs dependencies and runs all project scripts. TypeScript re
 The repository no longer forces the VS Code ESLint/Prettier extensions. Run the commands above
 for the same checks used by CI.
 
+Successful release builds recreate the rolling `latest` release so GitHub's publication date
+matches the build. The tag and download URLs stay the same; release IDs and reactions do not.
+
 ## Usage
 
 1. Open DevTools on the target page (`F12`)
