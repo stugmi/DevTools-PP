@@ -11,8 +11,8 @@
     "test": "bun test ./scripts/test-sniff-body-lang.js",
     "lint": "bun lint --no-script .",
     "lint:fix": "bun lint --no-script . --fix",
-    "format": "bun fmt --no-script \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md,toml}\" \".github/**/*.yml\"",
-    "format:check": "bun fmt --no-script --check \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md,toml}\" \".github/**/*.yml\"",
+    "format": "bun fmt --no-script \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md,toml}\" \"changelogs/*.md\" \".github/**/*.yml\"",
+    "format:check": "bun fmt --no-script --check \"{src,scripts}/**/*.{js,json,html,css}\" \"*.{js,json,md,toml}\" \"changelogs/*.md\" \".github/**/*.yml\"",
     "check": "bun run typecheck && bun run lint && bun run format:check && bun run build",
     "fix": "bun run lint:fix && bun run format && bun run build"
   },

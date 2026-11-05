@@ -47,8 +47,22 @@ installed. Bun installs dependencies and runs all project scripts. TypeScript re
 The repository no longer forces the VS Code ESLint/Prettier extensions. Run the commands above
 for the same checks used by CI.
 
-Successful release builds recreate the rolling `latest` release so GitHub's publication date
-matches the build. The tag and download URLs stay the same; release IDs and reactions do not.
+## Releases and changelogs
+
+[1.3.0 release notes](changelogs/1.3.0.md) are kept in `changelogs/<version>.md`, using
+the version from `package.json`. These files are the source of truth for GitHub release notes.
+Use compact bullets under populated, version-prefixed sections: Hotfixes, New Features,
+Changes, Bug Fixes, Security, and Developer Information. Omit empty sections and unfinished work.
+
+Successful builds publish the same Markdown to a versioned `v<version>` release and rolling
+`latest`. Versioned releases keep their original tags and assets; rebuilding the same version
+only synchronizes its notes. The rolling release is recreated so its publication date matches
+the build. Its tag and download URLs stay the same; release IDs and reactions do not.
+
+Update the changelog alongside each shipped change. Once a version is published, new shipped
+behavior requires a version bump and a new changelog; do not rewrite earlier release history.
+Factual corrections belong in the original Markdown and must be synchronized to that release,
+not maintained separately on GitHub. `bun run format:check` includes the changelog files.
 
 ## Usage
 

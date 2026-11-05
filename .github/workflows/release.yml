@@ -40,16 +40,27 @@ jobs:
             echo "::warning::CRX_PRIVATE_KEY secret not set; publishing zip only"
           fi
 
-      - name: Publish rolling "latest" release
+      - name: Publish versioned and rolling releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(bun -p "require('./package.json').version")
+          changelog="changelogs/$version.md"
+          if [ ! -s "$changelog" ]; then
+            echo "::error file=$changelog::Missing changelog for version $version"
+            exit 1
+          fi
+
+          # Published versions keep their original tag and assets; only notes can change.
+          if gh release view "v$version" > /dev/null 2>&1; then
+            gh release edit "v$version" --notes-file "$changelog"
+          else
+            gh release create "v$version" out/* --target "$GITHUB_SHA" \
+              --title "Source Exporter $version" --notes-file "$changelog" --latest=false
+          fi
+
           short=${GITHUB_SHA::7}
           title="Latest build (v$version, $short)"
-          notes="Automated build of $GITHUB_SHA.
-          - \`source-exporter.zip\`: unpacked extension. Unzip and use Load unpacked in chrome://extensions.
-          - \`source-exporter.crx\`: packed extension signed with the project key."
           # Recreate the release after packaging so its publication time matches this build.
           # Keep the rolling tag and download URLs; only the release object is replaced.
           git tag -f latest "$GITHUB_SHA"
@@ -58,4 +69,4 @@ jobs:
             gh release delete latest --yes
           fi
           gh release create latest out/* --verify-tag --latest \
-            --target "$GITHUB_SHA" --title "$title" --notes "$notes"
+            --target "$GITHUB_SHA" --title "$title" --notes-file "$changelog"
