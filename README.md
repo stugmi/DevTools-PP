@@ -1,7 +1,18 @@
 # Source Exporter
 
-A Chrome DevTools extension that reconstructs original files from source maps and
-exports captured sources and requests as ZIP or TAR archives.
+An alternative source and network workspace inside Chrome DevTools, with mapped-source
+exports and quality-of-life tools beyond the standard panels.
+
+## Features
+
+- Source browsing and editing
+  - Reconstructed originals and deployed files
+- Network request inspection
+  - Parsed bodies, sandboxed previews, and cookie tools
+- Search all captured files and find references
+- ZIP and TAR exports
+  - Mapped sources, folders, requests, and full captures
+- Dockable panels, themes, and a command palette
 
 ## Install
 
