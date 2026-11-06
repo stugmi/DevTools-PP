@@ -177,8 +177,8 @@ const HexDump = (() => {
     if (raw.includes("\ufffd") || LONE_SURROGATE.test(raw)) {
       return unavailable(
         "The captured response text contains replacement (U+FFFD) or unpaired surrogate " +
-          "characters, so its original bytes were not captured and no hex can be shown. Source " +
-          "shows the decoded text.",
+          "characters, so its original bytes were not captured and no hex can be shown. " +
+          "Choose a text language to read the decoded text.",
         RequestCode.isBinaryMedia(contentType) || looksBinaryText(raw)
       );
     }
