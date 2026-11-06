@@ -4,9 +4,6 @@
 "use strict";
 
 const HexDump = (() => {
-  // Media types that are never presented as text, even when the bytes happen to be UTF-8.
-  const BINARY_MEDIA =
-    /^(?:(?:image|audio|video|font)\/|application\/(?:octet-stream|zip|gzip|x-gzip|x-zip-compressed|zlib|pdf|(?:x-)?protobuf|x-google-protobuf|vnd\.google\.protobuf|grpc.*|(?:x-)?msgpack|cbor|wasm|zstd|x-bzip2?|x-tar|x-7z-compressed|vnd\.apache\.avro.*)$|.*\+(?:proto|protobuf|cbor)$)/i;
   const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
   const UTF8_CHARSET = /^(utf-?8|us-ascii)$/i;
   const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -23,19 +20,48 @@ const HexDump = (() => {
     }
   }
 
+  // Bytes encoded as base64 text in a body (gRPC-web text frames, tokens, blobs), or null when
+  // the text is not entirely base64. Accepts standard and URL-safe alphabets, and concatenated
+  // padded chunks as gRPC-web text sends one per message.
+  const BASE64_CHUNK = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+  function decodeBase64Text(text) {
+    if (typeof text !== "string") return null;
+    let body = text.trim();
+    if (body.length < 4) return null;
+    if (/[-_]/.test(body)) {
+      if (/[+/]/.test(body)) return null;
+      body = body.replace(/-/g, "+").replace(/_/g, "/");
+    }
+    const chunks = body.split(/(?<==)(?=[^=])/);
+    const parts = [];
+    let size = 0;
+    for (let index = 0; index < chunks.length; index++) {
+      let chunk = chunks[index];
+      // Only the last chunk may omit its padding.
+      if (index === chunks.length - 1 && !chunk.endsWith("=") && chunk.length % 4) {
+        if (chunk.length % 4 === 1) return null;
+        chunk += "=".repeat(4 - (chunk.length % 4));
+      }
+      if (!BASE64_CHUNK.test(chunk)) return null;
+      const bytes = fromBase64(chunk);
+      if (!bytes) return null;
+      parts.push(bytes);
+      size += bytes.length;
+    }
+    const out = new Uint8Array(size);
+    let at = 0;
+    for (const part of parts) {
+      out.set(part, at);
+      at += part.length;
+    }
+    return out;
+  }
+
   // -- Byte extraction --
 
   const absent = () => ({ status: "absent" });
   const empty = () => ({ status: "empty", bytes: new Uint8Array(0) });
   const unavailable = (reason, garbled = false) => ({ status: "unavailable", reason, garbled });
-
-  function hasBinaryControl(text) {
-    for (let index = 0; index < text.length; index++) {
-      const code = text.charCodeAt(index);
-      if (code === 0x7f || (code < 0x20 && code !== 9 && code !== 10 && code !== 13)) return true;
-    }
-    return false;
-  }
 
   // Replacement characters or controls in the first few KB: lossy text that is almost certainly
   // binary (compressed, protobuf, ...) rather than text that merely contains one odd character.
@@ -90,16 +116,12 @@ const HexDump = (() => {
     if (!body.bytes.length) return empty();
     const encoding = entry._record.request.bodyEncoding || entry._requestPostData?.encoding;
     const exact = typeof entry._requestBodyBytes?.base64 === "string" || encoding === "base64";
-    const binary = body.text === null || hasBinaryControl(body.text);
+    const binary = body.text === null || RequestCode.hasBinaryControl(body.text);
     const source = exact ? entry._requestBodyBytes?.source || "request.base64" : "utf8-text";
     return { status: "bytes", bytes: body.bytes, text: body.text, binary, exact, source };
   }
 
   // -- Response (DevTools cache: decoded/decompressed content, never wire bytes) --
-
-  function mediaType(value) {
-    return /^\s*([^;\s]*)/.exec(value || "")[1].toLowerCase();
-  }
 
   function charsetOf(value) {
     return /charset\s*=\s*["']?([^\s;"']+)/i.exec(value || "")?.[1];
@@ -114,14 +136,14 @@ const HexDump = (() => {
     if (!bytes.length) return empty();
     let text = null;
     const charset = charsetOf(contentType);
-    if (!BINARY_MEDIA.test(mediaType(contentType)) && (!charset || UTF8_CHARSET.test(charset))) {
+    if (!RequestCode.isBinaryMedia(contentType) && (!charset || UTF8_CHARSET.test(charset))) {
       try {
         text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
       } catch {
         text = null;
       }
     }
-    const binary = text === null || hasBinaryControl(text);
+    const binary = text === null || RequestCode.hasBinaryControl(text);
     const source = exact ? "response.base64" : "utf8-text";
     return { status: "bytes", bytes, text, binary, exact, source };
   }
@@ -157,7 +179,7 @@ const HexDump = (() => {
         "The captured response text contains replacement (U+FFFD) or unpaired surrogate " +
           "characters, so its original bytes were not captured and no hex can be shown. Source " +
           "shows the decoded text.",
-        BINARY_MEDIA.test(mediaType(contentType)) || looksBinaryText(raw)
+        RequestCode.isBinaryMedia(contentType) || looksBinaryText(raw)
       );
     }
     return responseBytes(new TextEncoder().encode(raw), contentType, false);
@@ -186,6 +208,7 @@ const HexDump = (() => {
 
   return {
     fromBase64,
+    decodeBase64Text,
     requestBody,
     responseBody,
     prefersHex,

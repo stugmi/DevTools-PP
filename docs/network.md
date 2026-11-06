@@ -47,7 +47,7 @@ Frames from an earlier navigation or reset are marked unavailable rather than li
 Selecting a request opens **Headers**, **Payload**, **Preview**, **Response**, **Initiator**, **Cookies**, and **Timing** views, where applicable.
 
 - **Raw** switches headers between parsed and wire-oriented text.
-- **Source** shows highlighted, optionally pretty-formatted body text. Choose the body language, including **Hex**, from the footer dropdown; **Auto** picks Hex for binary bodies.
+- **Source** shows highlighted, optionally pretty-formatted body text. Choose the body language, including **Hex**, from the footer dropdown; **Auto** picks Hex for binary bodies. When the body text is base64 (for example gRPC-web text mode), **Hex (Base64 decoded)** shows the decoded bytes.
 - **Parsed** shows a collapsible JSON tree or HTML/XML document tree.
 - **Hex** shows an address column, a byte grid, and ASCII, with a data inspector and a selection status bar.
   - Click, drag, or Shift-click to select bytes; arrows, Page Up/Down, Home/End, and Ctrl+A also move or extend the selection.

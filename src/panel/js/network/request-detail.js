@@ -88,18 +88,18 @@ function hideHexHost(tab) {
 
 // The Hex view: the byte viewer, or the reason there are no bytes to show.
 function renderHexArea({ entry, tab, treeHost, viewerHost }) {
-  const slot = hexBodyFor(entry, tab);
+  const view = hexViewFor(entry, tab);
   viewerHost.hidden = true;
-  if (slot.result.status !== "bytes") {
+  if (!view.bytes) {
     hideHexHost(tab);
     hexViewers[tab]?.clear();
     treeHost.hidden = false;
-    treeHost.replaceChildren(requestDetailEmpty(slot.note));
+    treeHost.replaceChildren(requestDetailEmpty(view.reason));
     return;
   }
   treeHost.hidden = true;
   hexHostFor(tab).hidden = false;
-  ensureHexViewer(tab).setBytes(slot.result.bytes, { note: slot.note });
+  ensureHexViewer(tab).setBytes(view.bytes, { note: view.note });
 }
 
 // -- Headers tab (modelled on Chrome DevTools) --
@@ -567,6 +567,11 @@ function updateRequestFooterControls(entry, tab) {
   const label =
     view === "hex" ? "Hex" : (BODY_LANG_OPTIONS.find(([id]) => id === lang)?.[1] ?? lang);
   select.options[0].textContent = override === "auto" ? `Auto (${label})` : "Auto";
+  // Base64 decoding is only offered when the body text actually decodes (or is already chosen).
+  const base64Option = [...select.options].find((option) => option.value === "hex-base64");
+  if (base64Option) {
+    base64Option.hidden = override !== "hex-base64" && !bodyDecodesAsBase64(entry, tab);
+  }
   select.value = override;
 }
 
@@ -725,7 +730,7 @@ el.btnCopy.addEventListener(
     const entry = state.requestTree[state.selectedPath];
     const tab = currentRequestTab();
     if (!entry || !isBodyTab(tab) || isBodyPlaceholder(entry, tab)) return;
-    if (bodyViewFor(entry, tab) !== "hex" || hexBodyFor(entry, tab).result.status !== "bytes") {
+    if (bodyViewFor(entry, tab) !== "hex" || !hexViewFor(entry, tab).bytes) {
       return;
     }
     const text = hexViewers[tab]?.selectionText("hex");

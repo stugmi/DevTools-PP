@@ -17,8 +17,10 @@ const BODY_LANG_OPTIONS = [
   ["markdown", "Markdown"],
   ["graphql", "GraphQL"],
   ["shell", "Shell"],
-  // Not a language: the footer menu entry that shows the body as bytes in the hex viewer.
+  // Not languages: footer menu entries that show the body as bytes in the hex viewer, either as
+  // captured or decoded from base64 body text (offered only when the text is valid base64).
   ["hex", "Hex"],
+  ["hex-base64", "Hex (Base64 decoded)"],
 ];
 
 // Bodies up to this size are pretty-printed; larger ones are shown as-is so a huge response
@@ -114,7 +116,7 @@ function bodyLanguageFor(entry, tab) {
   const side = bodySide(entry, tab);
   const chosen = requestBodyOverrides(entry)[tab];
   // Hex is a display mode, not a language: text consumers see the auto-detected language.
-  const override = chosen === "hex" ? "auto" : chosen;
+  const override = isHexChoice(chosen) ? "auto" : chosen;
   const memo = (entry._bodyLangMemo ??= {});
   const hit = memo[tab];
   if (
@@ -290,11 +292,50 @@ function hexBodyFor(entry, tab) {
   });
 }
 
-// True when the tab shows the hex viewer: the language override is Hex, or it is Auto and the
-// body is binary or only a garbled text copy exists.
+function isHexChoice(choice) {
+  return choice === "hex" || choice === "hex-base64";
+}
+
+// Bytes decoded from the body text when it is entirely base64; computed once per slot.
+function base64BytesFor(slot) {
+  if (slot.base64 === undefined) {
+    const { result } = slot;
+    slot.base64 =
+      result.status === "bytes" && result.text != null
+        ? HexDump.decodeBase64Text(result.text)
+        : null;
+  }
+  return slot.base64;
+}
+
+function bodyDecodesAsBase64(entry, tab) {
+  return base64BytesFor(hexBodyFor(entry, tab)) !== null;
+}
+
+// What the hex viewer shows for a tab: `{ bytes, note }`, or `{ reason }` when there are no
+// bytes to show. The byte array keeps its identity while the body is the same.
+function hexViewFor(entry, tab) {
+  const slot = hexBodyFor(entry, tab);
+  if (requestBodyOverrides(entry)[tab] !== "hex-base64") {
+    return slot.result.status === "bytes"
+      ? { bytes: slot.result.bytes, note: slot.note }
+      : { reason: slot.note };
+  }
+  const decoded = base64BytesFor(slot);
+  if (!decoded) return { reason: "The body text is not valid base64, so it cannot be decoded." };
+  const size = decoded.length.toLocaleString("en-US");
+  const chars = slot.result.text.trim().length.toLocaleString("en-US");
+  return {
+    bytes: decoded,
+    note: `${size} byte${decoded.length === 1 ? "" : "s"} decoded from ${chars} characters of base64 body text.`,
+  };
+}
+
+// True when the tab shows the hex viewer: the language override is a Hex choice, or it is Auto
+// and the body is binary or only a garbled text copy exists.
 function bodyShowsHex(entry, tab) {
   const override = requestBodyOverrides(entry)[tab] ?? "auto";
-  if (override === "hex") return true;
+  if (isHexChoice(override)) return true;
   return override === "auto" && HexDump.prefersHex(hexBodyFor(entry, tab).result);
 }
 

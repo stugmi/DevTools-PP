@@ -111,3 +111,43 @@ test("response body: base64 cache is exact bytes; lossy text is unavailable", ()
   assert.equal(bad.bytes, undefined);
   assert.equal(HexDump.responseBody({ _record: { response: { headers: [] } } }).status, "absent");
 });
+
+test("gRPC-web text bodies are base64 text, binary gRPC media still prefers hex", () => {
+  const textBody = (contentType, raw) =>
+    HexDump.requestBody(
+      entry(
+        { headers: [{ name: "Content-Type", value: contentType }], bodySize: raw.length },
+        {
+          _rawRequestBody: raw,
+        }
+      )
+    );
+  for (const type of ["application/grpc-web-text", "application/grpc-web-text+proto"]) {
+    const r = textBody(type, "AAAAAAA=");
+    assert.equal(r.text, "AAAAAAA=", type);
+    assert.equal(HexDump.prefersHex(r), false, type);
+  }
+  const binary = HexDump.requestBody(
+    entry(
+      { headers: [{ name: "Content-Type", value: "application/grpc-web+proto" }] },
+      { _requestBodyBytes: { base64: "AAAAAAA=", source: "t" } }
+    )
+  );
+  assert.equal(HexDump.prefersHex(binary), true);
+});
+
+test("decodeBase64Text decodes whole-body base64, including gRPC-web chunks", () => {
+  const decode = (text) => {
+    const bytes = HexDump.decodeBase64Text(text);
+    return bytes && Array.from(bytes);
+  };
+  assert.deepEqual(decode("AAAAAAA="), [0, 0, 0, 0, 0]);
+  // Two padded gRPC-web frames concatenated: an empty data frame and an empty trailer frame.
+  assert.deepEqual(decode("AAAAAAA=" + "gAAAAAA="), [0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0]);
+  assert.deepEqual(decode("_-8"), null, "too short");
+  assert.deepEqual(decode("__-_"), [0xff, 0xff, 0xbf], "URL-safe alphabet");
+  assert.deepEqual(decode("eJwA/w"), [0x78, 0x9c, 0x00, 0xff], "unpadded final chunk");
+  for (const bad of ["not base64!", "abcde", "ab+_cd==", "AA==AA=x", ""]) {
+    assert.equal(HexDump.decodeBase64Text(bad), null, JSON.stringify(bad));
+  }
+});

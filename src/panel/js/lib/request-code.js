@@ -39,8 +39,9 @@ const RequestCode = (() => {
     "via",
   ]);
   // Media types whose bodies are never presented as text, even when the bytes happen to be UTF-8.
+  // gRPC-web's text mode (application/grpc-web-text[+proto]) is base64 text, so it is excluded.
   const BINARY_MEDIA =
-    /^(?:(?:image|audio|video|font)\/|application\/(?:octet-stream|zip|gzip|x-gzip|x-zip-compressed|zlib|pdf|(?:x-)?protobuf|x-google-protobuf|vnd\.google\.protobuf|grpc.*|(?:x-)?msgpack|cbor|wasm|zstd|x-bzip2?|x-tar|x-7z-compressed|vnd\.apache\.avro.*)$|.*\+(?:proto|protobuf|cbor)$)/i;
+    /^(?!application\/grpc-web-text(?:\+|$))(?:(?:image|audio|video|font)\/|application\/(?:octet-stream|zip|gzip|x-gzip|x-zip-compressed|zlib|pdf|(?:x-)?protobuf|x-google-protobuf|vnd\.google\.protobuf|grpc(?:-web)?(?:\+proto)?|(?:x-)?msgpack|cbor|wasm|zstd|x-bzip2?|x-tar|x-7z-compressed|vnd\.apache\.avro.*)$|.*\+(?:proto|protobuf|cbor)$)/i;
   const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
   const URL_BREAK = /[/?&#]/;
   const TEXT_BREAK = /[\s,;&]/;
@@ -188,13 +189,26 @@ const RequestCode = (() => {
     );
   }
 
+  function isBinaryMedia(contentType) {
+    return BINARY_MEDIA.test(mediaType(contentType));
+  }
+
+  // Control characters other than tab and line breaks: the text is really binary data.
+  function hasBinaryControl(text) {
+    for (let index = 0; index < text.length; index++) {
+      const code = text.charCodeAt(index);
+      if (code === 0x7f || (code < 0x20 && code !== 9 && code !== 10 && code !== 13)) return true;
+    }
+    return false;
+  }
+
   // Exact bytes always win; `text` is only set when the bytes are safely presentable UTF-8 text.
   function bodyShape(bytes, contentType, encoded) {
     let text = null;
     const charset = charsetOf(contentType);
     if (
       !encoded &&
-      !BINARY_MEDIA.test(mediaType(contentType)) &&
+      !isBinaryMedia(contentType) &&
       (!charset || /^(utf-?8|us-ascii)$/i.test(charset))
     ) {
       try {
@@ -786,14 +800,6 @@ const RequestCode = (() => {
     };
   }
 
-  function hasBinaryControl(text) {
-    for (let index = 0; index < text.length; index++) {
-      const code = text.charCodeAt(index);
-      if (code === 0x7f || (code < 0x20 && code !== 9 && code !== 10 && code !== 13)) return true;
-    }
-    return false;
-  }
-
   // Chooses the Python body argument; only forms whose library encoding reproduces the captured
   // bytes exactly (or whose only capture is structured parameters) replace the raw body.
   function pyBody(request, httpx) {
@@ -1103,6 +1109,8 @@ const RequestCode = (() => {
     DEFAULT_FORMAT,
     DEFAULT_LINE_WIDTH,
     normalizeLineWidth,
+    isBinaryMedia,
+    hasBinaryControl,
     normalize,
     requestBody,
     serialize,
