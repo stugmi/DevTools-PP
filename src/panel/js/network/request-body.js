@@ -17,6 +17,8 @@ const BODY_LANG_OPTIONS = [
   ["markdown", "Markdown"],
   ["graphql", "GraphQL"],
   ["shell", "Shell"],
+  // Not a language: the footer menu entry that shows the body as bytes in the hex viewer.
+  ["hex", "Hex"],
 ];
 
 // Bodies up to this size are pretty-printed; larger ones are shown as-is so a huge response
@@ -110,7 +112,9 @@ function bodySide(entry, tab) {
 // tab on the body identity, MIME type and override; `json` carries the value the sniffer parsed.
 function bodyLanguageFor(entry, tab) {
   const side = bodySide(entry, tab);
-  const override = requestBodyOverrides(entry)[tab];
+  const chosen = requestBodyOverrides(entry)[tab];
+  // Hex is a display mode, not a language: text consumers see the auto-detected language.
+  const override = chosen === "hex" ? "auto" : chosen;
   const memo = (entry._bodyLangMemo ??= {});
   const hit = memo[tab];
   if (
@@ -242,23 +246,22 @@ function parsedBodyFor(entry, tab) {
   return result;
 }
 
-// -- Body view mode: Source, Parsed or Hex --
+// -- Body view: Hex (a language option), or Source/Parsed text --
 
-// Payload and Response keep independent view preferences, keyed by tab, so switching tabs or
-// requests never leaks one's state into the other. Choosing a view also records it on the entry
-// (`_bodyViewChoice`), which beats the default that binary bodies open in Hex.
-function bodyViewPrefs() {
-  return (state.requestBodyViewByTab ??= { payload: "source", response: "source" });
+// Payload and Response keep independent Source/Parsed toggles, keyed by tab, so switching tabs
+// or requests never leaks one's state into the other.
+function bodyParsedState() {
+  return (state.requestBodyParsedByTab ??= { payload: false, response: false });
 }
 
-function setBodyView(entry, tab, view) {
-  (entry._bodyViewChoice ??= {})[tab] = view;
-  bodyViewPrefs()[tab] = view;
+function setBodyParsed(tab, value) {
+  bodyParsedState()[tab] = Boolean(value);
 }
 
-// Byte extraction and the current dump page for a tab, kept in one slot per tab (the last body
-// shown) so the bytes are not retained for every request ever viewed and re-renders that only
-// toggle wrap or format do not re-extract a large body.
+// Byte extraction for a tab, kept in one slot per tab (the last body shown) so the bytes are not
+// retained for every request ever viewed and re-renders that only toggle wrap or format do not
+// re-extract a large body. The slot's `result.bytes` keeps its identity while the body is the
+// same, which is how the hex viewer knows to keep its selection.
 const hexBodySlots = { payload: null, response: null };
 
 function hexBodyFor(entry, tab) {
@@ -284,41 +287,22 @@ function hexBodyFor(entry, tab) {
     encoding,
     result,
     note: HexDump.describe(result, isResponse ? "response" : "request"),
-    page: 0,
-    shown: null,
   });
 }
 
-// The dump page being shown (clamped to the body), or null when there are no bytes.
-function hexPageFor(entry, tab) {
-  const slot = hexBodyFor(entry, tab);
-  if (slot.result.status !== "bytes") return null;
-  if (!slot.shown || slot.shown.page !== slot.page) {
-    slot.shown = HexDump.dump(slot.result.bytes, slot.page);
-    slot.page = slot.shown.page;
-  }
-  return slot.shown;
+// True when the tab shows the hex viewer: the language override is Hex, or it is Auto and the
+// body is binary or only a garbled text copy exists.
+function bodyShowsHex(entry, tab) {
+  const override = requestBodyOverrides(entry)[tab] ?? "auto";
+  if (override === "hex") return true;
+  return override === "auto" && HexDump.prefersHex(hexBodyFor(entry, tab).result);
 }
 
-function setHexPage(entry, tab, page) {
-  hexBodyFor(entry, tab).page = page;
-}
-
-// The view a tab actually shows: the entry's own choice, else Hex for binary or undecodable
-// bodies, else the tab's preference; falling back to Source when that view has nothing to show.
+// The view a tab actually shows: "hex", the parsed tree (when chosen and the body parses) or
+// the "source" text viewer.
 function bodyViewFor(entry, tab) {
-  const { result } = hexBodyFor(entry, tab);
-  let want = entry._bodyViewChoice?.[tab];
-  if (!want) {
-    if (HexDump.prefersHex(result)) want = "hex";
-    else {
-      want = bodyViewPrefs()[tab];
-      if (want === "hex" && result.status !== "bytes") want = "source";
-    }
-  }
-  if (want === "hex" && result.status !== "absent") return "hex";
-  if (want === "parsed" && parsedBodyFor(entry, tab)) return "parsed";
-  return "source";
+  if (bodyShowsHex(entry, tab)) return "hex";
+  return bodyParsedState()[tab] && parsedBodyFor(entry, tab) ? "parsed" : "source";
 }
 
 // The parsed body a tab shows instead of source text: only when Parsed is the shown view.

@@ -54,108 +54,52 @@ function requestDetailPanel(tab) {
   return document.getElementById(`request-detail-panel-${tab}`);
 }
 
-// Source / Parsed / Hex toggle for Payload and Response. Parsed and Hex only appear when the body
-// has something to show there; the active button follows the view actually shown.
+// Source / Parsed toggle for Payload and Response, only for bodies that parse. Hex is not a view
+// here: it is a language in the footer menu, and while it is shown the toggle is hidden.
 function updateBodyViewToggle(entry, tab) {
   const toggle = document.getElementById("request-body-view-toggle");
   if (!toggle) return;
-  if (!isBodyTab(tab) || isBodyPlaceholder(entry, tab)) {
-    toggle.hidden = true;
-    return;
-  }
-  const available = {
-    source: true,
-    parsed: !!parsedBodyFor(entry, tab),
-    hex: hexBodyFor(entry, tab).result.status !== "absent",
-  };
-  const shown = bodyViewFor(entry, tab);
-  let visible = 0;
+  const view = isBodyTab(tab) && !isBodyPlaceholder(entry, tab) ? bodyViewFor(entry, tab) : null;
+  toggle.hidden = !view || view === "hex" || !parsedBodyFor(entry, tab);
+  if (toggle.hidden) return;
   for (const button of toggle.querySelectorAll("button[data-body-view]")) {
-    const view = button.dataset.bodyView;
-    const active = view === shown;
-    button.hidden = !available[view];
-    if (!button.hidden) visible++;
+    const active = button.dataset.bodyView === view;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
   }
-  toggle.hidden = visible < 2;
 }
 
-// Note and page controls above the hex dump, created on first use (one per body tab).
-const hexBars = {};
+// One hex viewer per body tab, mounted on first use into its own host.
+const hexViewers = {};
 
-function hexBarFor(tab, viewerHost) {
-  if (hexBars[tab]) return hexBars[tab];
-  const element = document.createElement("div");
-  element.className = "request-hex-bar";
-  element.hidden = true;
-  const note = document.createElement("span");
-  note.className = "request-hex-note";
-  const pager = document.createElement("span");
-  pager.className = "request-hex-pager";
-  pager.setAttribute("role", "group");
-  pager.setAttribute("aria-label", "Hex dump pages");
-  const label = document.createElement("span");
-  label.className = "request-hex-page";
-  label.setAttribute("aria-live", "polite");
-  const buttons = {};
-  for (const [action, text] of [
-    ["first", "First"],
-    ["prev", "Prev"],
-    ["next", "Next"],
-    ["last", "Last"],
-  ]) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = text;
-    button.dataset.hexPage = action;
-    buttons[action] = button;
-  }
-  pager.append(buttons.first, buttons.prev, label, buttons.next, buttons.last);
-  element.append(note, pager);
-  viewerHost.before(element);
-  pager.addEventListener("click", (event) => {
-    const action = event.target.closest("button[data-hex-page]")?.dataset.hexPage;
-    const entry = state.requestTree[state.selectedPath];
-    const page = entry && hexPageFor(entry, tab);
-    if (!action || !page) return;
-    const target = { first: 0, prev: page.page - 1, next: page.page + 1, last: page.pages - 1 };
-    setHexPage(entry, tab, target[action]);
-    showSelectedRequestTab({ chrome: false });
-  });
-  return (hexBars[tab] = { element, note, pager, label, buttons });
+function hexHostFor(tab) {
+  return document.getElementById(`request-${tab}-hex`);
 }
 
-function hideHexBar(tab) {
-  if (hexBars[tab]) hexBars[tab].element.hidden = true;
+function ensureHexViewer(tab) {
+  hexViewers[tab] ??= HexViewer.mount(hexHostFor(tab));
+  return hexViewers[tab];
 }
 
-// The Hex view: a paged dump in the read-only viewer, or the reason there are no bytes to dump.
+function hideHexHost(tab) {
+  const host = hexHostFor(tab);
+  if (host) host.hidden = true;
+}
+
+// The Hex view: the byte viewer, or the reason there are no bytes to show.
 function renderHexArea({ entry, tab, treeHost, viewerHost }) {
-  const bar = hexBarFor(tab, viewerHost);
   const slot = hexBodyFor(entry, tab);
-  const page = hexPageFor(entry, tab);
-  if (!page) {
-    bar.element.hidden = true;
-    viewerHost.hidden = true;
+  viewerHost.hidden = true;
+  if (slot.result.status !== "bytes") {
+    hideHexHost(tab);
+    hexViewers[tab]?.clear();
     treeHost.hidden = false;
     treeHost.replaceChildren(requestDetailEmpty(slot.note));
     return;
   }
   treeHost.hidden = true;
-  viewerHost.hidden = false;
-  const viewer = tab === "payload" ? ensurePayloadViewer() : ensureResponseViewer();
-  viewer.setContent(page.text, "plaintext", { resetScroll: true });
-  viewer.setWrap(false);
-
-  bar.element.hidden = false;
-  bar.note.textContent = slot.note;
-  bar.note.title = slot.note;
-  bar.pager.hidden = page.pages < 2;
-  const range = `0x${page.start.toString(16)}-0x${(page.end - 1).toString(16)}`;
-  bar.label.textContent = `Page ${page.page + 1} of ${page.pages} (${range})`;
-  bar.buttons.first.disabled = bar.buttons.prev.disabled = page.page === 0;
-  bar.buttons.next.disabled = bar.buttons.last.disabled = page.page === page.pages - 1;
+  hexHostFor(tab).hidden = false;
+  ensureHexViewer(tab).setBytes(slot.result.bytes, { note: slot.note });
 }
 
 // -- Headers tab (modelled on Chrome DevTools) --
@@ -332,14 +276,14 @@ function availableRequestTabs(entry) {
 }
 
 // Shared by Payload and Response: renders one body area, either the source text viewer, the
-// parsed tree (JSON value or HTML/XML document) or the hex dump, depending on the
-// Source/Parsed/Hex toggle and whether the body parses at all.
+// parsed tree (JSON value or HTML/XML document) or the hex viewer, depending on the language
+// override (Hex included), the Source/Parsed toggle and whether the body parses at all.
 function renderBodyArea({ entry, tab, treeHost, viewerHost, sourceText, mime }) {
   if (bodyViewFor(entry, tab) === "hex") {
     renderHexArea({ entry, tab, treeHost, viewerHost });
     return;
   }
-  hideHexBar(tab);
+  hideHexHost(tab);
   const parsed = shownParsedBody(entry, tab);
   treeHost.hidden = !parsed;
   viewerHost.hidden = !!parsed;
@@ -386,7 +330,7 @@ function renderPayloadPanel(entry) {
     meta.style.height = "";
     treeHost.hidden = true;
     viewerHost.hidden = true;
-    hideHexBar("payload");
+    hideHexHost("payload");
     return;
   }
 
@@ -426,7 +370,7 @@ function renderResponsePanel(entry) {
   const placeholder = responsePlaceholderText(entry);
   if (placeholder) {
     viewerHost.hidden = true;
-    hideHexBar("response");
+    hideHexHost("response");
     treeHost.hidden = false;
     treeHost.replaceChildren(requestDetailEmpty(placeholder));
     return;
@@ -535,9 +479,8 @@ document.getElementById("request-body-view-toggle")?.addEventListener("click", (
   const button = event.target.closest("button[data-body-view]");
   if (!button) return;
   const tab = currentRequestTab();
-  const entry = state.requestTree[state.selectedPath];
-  if (!entry || !isBodyTab(tab)) return;
-  setBodyView(entry, tab, button.dataset.bodyView);
+  if (!isBodyTab(tab)) return;
+  setBodyParsed(tab, button.dataset.bodyView === "parsed");
   showSelectedRequestTab({ chrome: false });
 });
 
@@ -602,7 +545,8 @@ function setRequestWrap(enabled) {
 }
 
 // Wrap and Format live in the footer (like the file editor's controls) and only apply to the
-// Source view of Payload and Response; the language override applies to Source and Parsed.
+// Source view of Payload and Response; the language override (which includes Hex) applies to
+// every view.
 function updateRequestFooterControls(entry, tab) {
   const bodyTab = isBodyTab(tab);
   const view = bodyTab && !isBodyPlaceholder(entry, tab) ? bodyViewFor(entry, tab) : null;
@@ -616,21 +560,14 @@ function updateRequestFooterControls(entry, tab) {
   }
 
   const select = el.selRequestLang;
-  select.hidden = !view || view === "hex";
+  select.hidden = !view;
   if (select.hidden) return;
-  const override = requestBodyOverrides(entry)[tab];
+  const override = requestBodyOverrides(entry)[tab] ?? "auto";
   const { lang } = bodyLanguageFor(entry, tab);
-  const label = BODY_LANG_OPTIONS.find(([id]) => id === lang)?.[1] ?? lang;
+  const label =
+    view === "hex" ? "Hex" : (BODY_LANG_OPTIONS.find(([id]) => id === lang)?.[1] ?? lang);
   select.options[0].textContent = override === "auto" ? `Auto (${label})` : "Auto";
   select.value = override;
-}
-
-// What the footer Copy button copies: the record JSON, or the shown hex page in the Hex view.
-function requestCopyText(entry, tab) {
-  if (isBodyTab(tab) && !isBodyPlaceholder(entry, tab) && bodyViewFor(entry, tab) === "hex") {
-    return hexPageFor(entry, tab)?.text || entry.content;
-  }
-  return entry.content;
 }
 
 function populateRequestLangSelect() {
@@ -696,7 +633,7 @@ function renderRequestDetailBody(entry) {
   }
   updateBodyViewToggle(entry, tab);
   updateRequestFooterControls(entry, tab);
-  state.lastPreviewText = requestCopyText(entry, tab);
+  state.lastPreviewText = entry.content;
 
   if (tab === "headers") return renderHeadersPanel(entry);
   if (tab === "payload") return renderPayloadPanel(entry);
@@ -777,3 +714,22 @@ async function showSelectedRequestTab({ chrome = true } = {}) {
 el.btnRequestFormat.addEventListener("click", () => setRequestFormat(!state.requestDetailFormat));
 el.btnRequestWrap.addEventListener("click", () => setRequestWrap(!state.requestDetailWrap));
 populateRequestLangSelect();
+
+// The footer Copy button copies the hex viewer's selection (the whole body when nothing is
+// selected) as spaced hex. This capture listener runs before main.js reads
+// `state.lastPreviewText` on the same click.
+el.btnCopy.addEventListener(
+  "click",
+  () => {
+    if (state.selectedSection !== "requests") return;
+    const entry = state.requestTree[state.selectedPath];
+    const tab = currentRequestTab();
+    if (!entry || !isBodyTab(tab) || isBodyPlaceholder(entry, tab)) return;
+    if (bodyViewFor(entry, tab) !== "hex" || hexBodyFor(entry, tab).result.status !== "bytes") {
+      return;
+    }
+    const text = hexViewers[tab]?.selectionText("hex");
+    if (text) state.lastPreviewText = text;
+  },
+  true
+);

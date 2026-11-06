@@ -45,14 +45,18 @@ Frames from an earlier navigation or reset are marked unavailable rather than li
 Selecting a request opens **Headers**, **Payload**, **Preview**, **Response**, **Initiator**, **Cookies**, and **Timing** views, where applicable.
 
 - **Raw** switches headers between parsed and wire-oriented text.
-- **Source** shows highlighted, optionally pretty-formatted body text.
+- **Source** shows highlighted, optionally pretty-formatted body text. Choose the body language, including **Hex**, from the footer dropdown; **Auto** picks Hex for binary bodies.
 - **Parsed** shows a collapsible JSON tree or HTML/XML document tree.
-- **Hex** shows offsets, hexadecimal bytes, and ASCII, with paging for large bodies. Copy copies the current dump page.
+- **Hex** shows an address column, a byte grid, and ASCII, with a data inspector and a selection status bar.
+  - Click, drag, or Shift-click to select bytes; arrows, Page Up/Down, Home/End, and Ctrl+A also move or extend the selection.
+  - The data inspector decodes the byte at the cursor as integers (8 to 64 bits), floats (half, single, double, bfloat16), LEB128, bool, and ASCII/UTF-8/UTF-16 characters. Toggle little or big endian.
+  - **Go to** (Ctrl+G) jumps to a hex or decimal offset. **Find** (Ctrl+F) searches hex bytes or text.
+  - Copy the selection, or the whole body when nothing is selected, as hex, compact hex, a C array, Python `bytes.fromhex(...)`, base64, or ASCII.
 - **Preview** displays HTML, SVG, and images in a sandboxed frame with scripts disabled.
 
 JSON payloads support a single document or newline-separated object/array records when every record parses. Pretty formatting and the parsed tree preserve large integer values without changing the captured body.
 
-Hex uses exact captured bytes when available. For clean text, it labels the UTF-8 re-encoding. If DevTools already lost the original binary bytes, it shows an explanation instead of invented values. Response Hex displays cached, decoded content, not the compressed bytes sent over the network. Payload and Response keep separate view choices.
+Hex uses exact captured bytes when available. For clean text, it labels the UTF-8 re-encoding. If DevTools already lost the original binary bytes, it shows an explanation instead of invented values; choose a text language to read the decoded text. Response Hex displays cached, decoded content, not the compressed bytes sent over the network. Payload and Response keep separate language choices.
 
 Use the [keyboard shortcuts](editor.md#keyboard-shortcuts) to move between requests and detail tabs.
 

@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="css/settings.css" />
     <link rel="stylesheet" href="css/network.css" />
     <link rel="stylesheet" href="css/request-detail.css" />
+    <link rel="stylesheet" href="css/hex-viewer.css" />
     <link rel="stylesheet" href="css/cookies.css" />
   </head>
 
@@ -737,7 +738,6 @@
                     <button type="button" data-body-view="parsed" aria-pressed="false">
                       Parsed
                     </button>
-                    <button type="button" data-body-view="hex" aria-pressed="false">Hex</button>
                   </div>
                 </div>
                 <div id="request-detail-body">
@@ -766,6 +766,7 @@
                     ></div>
                     <div id="request-payload-tree" class="json-tree-host" hidden></div>
                     <div id="request-payload-viewer" class="request-viewer-host"></div>
+                    <div id="request-payload-hex" class="hexv-host" hidden></div>
                   </div>
                   <div
                     id="request-detail-panel-preview"
@@ -792,6 +793,7 @@
                   >
                     <div id="request-response-tree" class="json-tree-host" hidden></div>
                     <div id="request-response-viewer" class="request-viewer-host"></div>
+                    <div id="request-response-hex" class="hexv-host" hidden></div>
                   </div>
                   <div
                     id="request-detail-panel-initiator"
@@ -1050,6 +1052,7 @@
     <script src="js/core/keybinds.js"></script>
     <script src="js/lib/request-code.js"></script>
     <script src="js/lib/hexdump.js"></script>
+    <script src="js/lib/hex-inspector.js"></script>
     <script src="js/editor/monaco-loader.js"></script>
     <script src="js/editor/editor.js"></script>
     <script src="js/settings/editor-settings.js"></script>
@@ -1067,6 +1070,7 @@
     <script src="js/network/cookies.js"></script>
     <script src="js/network/network-table.js"></script>
     <script src="js/network/request-body.js"></script>
+    <script src="js/network/hex-viewer.js"></script>
     <script src="js/network/body-trees.js"></script>
     <script src="js/network/initiator.js"></script>
     <script src="js/network/request-detail.js"></script>

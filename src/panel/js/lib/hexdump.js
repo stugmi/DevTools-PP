@@ -1,64 +1,15 @@
-// Pure hex dump formatting and byte-first body extraction for the Network Hex view. No DOM, no
-// I/O. Loaded after request-code.js (request bytes) and before request-body.js / request-detail.js.
+// Byte-first body extraction for the Network Hex viewer: exact request/response bytes, or the
+// reason there are none. No DOM, no I/O. Loaded after request-code.js (request bytes) and before
+// hex-inspector.js / request-body.js / request-detail.js.
 "use strict";
 
 const HexDump = (() => {
-  const ROW = 16;
-  // Dump pages are this many bytes (16384 rows) so a huge body never builds one giant model.
-  const PAGE_BYTES = 1 << 18;
-  const HEX = Array.from({ length: 256 }, (_, byte) => byte.toString(16).padStart(2, "0"));
   // Media types that are never presented as text, even when the bytes happen to be UTF-8.
   const BINARY_MEDIA =
     /^(?:(?:image|audio|video|font)\/|application\/(?:octet-stream|zip|gzip|x-gzip|x-zip-compressed|zlib|pdf|(?:x-)?protobuf|x-google-protobuf|vnd\.google\.protobuf|grpc.*|(?:x-)?msgpack|cbor|wasm|zstd|x-bzip2?|x-tar|x-7z-compressed|vnd\.apache\.avro.*)$|.*\+(?:proto|protobuf|cbor)$)/i;
   const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
   const UTF8_CHARSET = /^(utf-?8|us-ascii)$/i;
   const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
-
-  // -- Formatting --
-
-  // Conventional rows: lowercase hex offset (8+ digits, wide enough for the whole body so pages
-  // line up), two 8-byte groups, `|ascii|` with printable 0x20..0x7e shown and everything else
-  // as ".". The last row's hex is padded to full width. `start` must be a multiple of 16.
-  function formatRows(bytes, { start = 0, end = bytes.length } = {}) {
-    end = Math.min(end, bytes.length);
-    if (end <= start) return "";
-    const width = Math.max(8, (bytes.length - 1).toString(16).length);
-    const rows = [];
-    for (let at = start; at < end; at += ROW) {
-      const stop = Math.min(at + ROW, end);
-      let hex = "";
-      let ascii = "";
-      for (let index = 0; index < ROW; index++) {
-        if (index === 8) hex += " ";
-        const position = at + index;
-        if (position < stop) {
-          const byte = bytes[position];
-          hex += HEX[byte] + " ";
-          ascii += byte >= 0x20 && byte <= 0x7e ? String.fromCharCode(byte) : ".";
-        } else {
-          hex += "   ";
-        }
-      }
-      rows.push(at.toString(16).padStart(width, "0") + "  " + hex + " |" + ascii + "|");
-    }
-    return rows.join("\n");
-  }
-
-  // One page of the dump: bytes [start, end) of page `page` (clamped), absolute offsets.
-  function dump(bytes, page = 0, pageBytes = PAGE_BYTES) {
-    const pages = Math.max(1, Math.ceil(bytes.length / pageBytes));
-    const index = Math.min(Math.max(0, Math.trunc(page) || 0), pages - 1);
-    const start = index * pageBytes;
-    const end = Math.min(bytes.length, start + pageBytes);
-    return {
-      text: formatRows(bytes, { start, end }),
-      page: index,
-      pages,
-      start,
-      end,
-      total: bytes.length,
-    };
-  }
 
   function fromBase64(text) {
     if (typeof text !== "string" || !BASE64.test(text) || text.length % 4 === 1) return null;
@@ -124,7 +75,7 @@ const HexDump = (() => {
       return unavailable(
         "No hex is shown because the original request bytes were not captured: " +
           detail +
-          (typeof raw === "string" ? " Source shows the decoded text." : ""),
+          (typeof raw === "string" ? " Choose a text language to read the decoded text." : ""),
         typeof raw === "string" &&
           (hasContentEncoding(entry._record.request.headers) || looksBinaryText(raw))
       );
@@ -198,7 +149,7 @@ const HexDump = (() => {
     if (charset && !UTF8_CHARSET.test(charset)) {
       return unavailable(
         `The response is declared as ${charset}, but only decoded text was captured, so its ` +
-          "original bytes are not available. Source shows the decoded text."
+          "original bytes are not available. Choose a text language to read the decoded text."
       );
     }
     if (raw.includes("\ufffd") || LONE_SURROGATE.test(raw)) {
@@ -234,10 +185,6 @@ const HexDump = (() => {
   }
 
   return {
-    ROW,
-    PAGE_BYTES,
-    formatRows,
-    dump,
     fromBase64,
     requestBody,
     responseBody,

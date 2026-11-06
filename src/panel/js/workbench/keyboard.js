@@ -129,8 +129,11 @@ function selectAdjacentRequest(step) {
 function arrowNavigatesRequests(target) {
   if (isTypingTarget(target) || !el.quickPicker.hidden || menuOpen()) return false;
   if (settingsOwns(target)) return false;
-  // The explorer tree and splitters use the arrow keys themselves.
-  if (target instanceof Element && target.closest("#tree-root, .dock-splitter, .inline-splitter")) {
+  // The explorer tree, splitters and the hex viewer grid use the arrow keys themselves.
+  if (
+    target instanceof Element &&
+    target.closest("#tree-root, .dock-splitter, .inline-splitter, .hexv")
+  ) {
     return false;
   }
   const inList = target instanceof Element && target.closest("#network-panel");

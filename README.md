@@ -20,7 +20,7 @@ familiar DevTools behavior first, then add new features and quality-of-life impr
 - Network request inspection
   - Filtering, sorting, and request timestamps
   - Headers, payloads, responses, cookies, and timing details
-    - Source, parsed, and hex body views, with sandboxed previews
+    - Source and parsed body views, sandboxed previews, and a hex viewer with a data inspector
   - Copy as Python (requests/httpx), browser/Node.js fetch, PowerShell, or cURL
     - Copy or export multiple selected requests
     - Preferred replay format and line width in Settings
