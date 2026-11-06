@@ -19,6 +19,15 @@ window.SourceEditor = (() => {
   let editTimer = null;
   let forcedReadOnly = false;
   let readOnlyBeforeForce = false;
+  // Cursor, selection and scroll per document id, so showing a document again (workspace or
+  // tab switch) lands where the user or a navigation left it.
+  const viewStates = new Map();
+
+  function saveViewState() {
+    if (!editor || !current || !editor.getModel()) return;
+    const view = editor.saveViewState();
+    if (view) viewStates.set(current.id, view);
+  }
 
   const EDIT_SYNC_MS = 150;
   const MAX_REFERENCE_LOCATIONS = 1000;
@@ -157,6 +166,7 @@ window.SourceEditor = (() => {
   function disposeDocument(id) {
     if (!window.monaco) return;
     if (current?.id === id) flushEdit();
+    viewStates.delete(id);
     for (const [key, documentId] of [...modelMeta]) {
       if (documentId === id && ownedUris.has(key)) disposeOwnedModel(key);
     }
@@ -168,6 +178,7 @@ window.SourceEditor = (() => {
     clearTimeout(editTimer);
     pendingEdit = false;
     referenceUris = new Set();
+    viewStates.clear();
     for (const key of [...ownedUris]) disposeOwnedModel(key);
   }
 
@@ -336,6 +347,7 @@ window.SourceEditor = (() => {
         editor.updateOptions({ readOnly: readOnly || readOnlyBeforeForce });
         forcedReadOnly = readOnly;
       }
+      saveViewState();
       current = document;
       editor.setModel(model);
     } finally {
@@ -353,6 +365,9 @@ window.SourceEditor = (() => {
       const selection = new monaco.Selection(lineNumber, startColumn, lineNumber, endColumn);
       editor.setSelection(selection);
       editor.revealRangeInCenter(selection);
+    } else {
+      const view = viewStates.get(document.id);
+      if (view) editor.restoreViewState(view);
     }
     editor.focus();
     return model;
@@ -361,6 +376,7 @@ window.SourceEditor = (() => {
   async function hide() {
     await ready;
     flushEdit();
+    saveViewState();
     current = null;
     editor.setModel(null);
   }

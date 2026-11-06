@@ -129,6 +129,66 @@
   color: var(--text-primary);
 }
 
+/* Hex view: note about where the bytes came from, plus page controls for large bodies. */
+.request-hex-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 24px;
+  padding: 2px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
+  color: var(--text-dim);
+  font: var(--fs-sm) var(--font-ui);
+}
+
+.request-hex-bar[hidden],
+.request-hex-pager[hidden] {
+  display: none;
+}
+
+.request-hex-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.request-hex-pager {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.request-hex-page {
+  padding: 0 4px;
+  font-family: var(--font-mono);
+}
+
+.request-hex-pager button {
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+}
+
+.request-hex-pager button:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-4);
+}
+
+.request-hex-pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 #request-detail-body {
   display: flex;
   flex-direction: column;
@@ -497,4 +557,53 @@
 
 #request-payload-meta:empty {
   display: none;
+}
+
+/* -- Initiator -- */
+.request-initiator-status,
+.initiator-note,
+.initiator-unavailable {
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.request-initiator-status {
+  padding: 4px 8px;
+  font-size: var(--fs-sm);
+}
+
+.initiator-frames {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.initiator-frame {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 3px 8px;
+}
+
+.initiator-func {
+  font-family: var(--font-mono);
+}
+
+.initiator-boundary {
+  padding: 5px 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.initiator-frame-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-align: left;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+  font: inherit;
+  cursor: pointer;
 }

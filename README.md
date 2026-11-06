@@ -1,18 +1,33 @@
 # Source Exporter
 
-An alternative source and network workspace inside Chrome DevTools, with mapped-source
-exports and quality-of-life tools beyond the standard panels.
+An alternative source and network workspace inside Chrome DevTools for debugging,
+reverse engineering, and inspecting web pages.
+
+I built it because Chromium's DevTools was missing features I'd wanted for a while,
+starting with exporting files detected through source maps. I've tried to keep the
+familiar DevTools behavior first, then add new features and quality-of-life improvements.
 
 ## Features
 
-- Source browsing and editing
-  - Reconstructed originals and deployed files
+- Source inspection
+  - ZIP and TAR exports
+    - Source-mapped and raw files, folders, domains, or whole captures
+  - Monaco code editor
+    - Basic code completion, go to definition, and find references
+    - Syntax highlighting and formatting
+    - Minimap navigation and editor options in Settings
+  - Search across all captured files
 - Network request inspection
-  - Parsed bodies, sandboxed previews, and cookie tools
-- Search all captured files and find references
-- ZIP and TAR exports
-  - Mapped sources, folders, requests, and full captures
-- Dockable panels, themes, and a command palette
+  - Filtering, sorting, and request timestamps
+  - Headers, payloads, responses, cookies, and timing details
+    - Source, parsed, and hex body views, with sandboxed previews
+  - Copy as Python (requests/httpx), browser/Node.js fetch, PowerShell, or cURL
+    - Copy or export multiple selected requests
+    - Preferred replay format and line width in Settings
+  - Initiator call stacks with source navigation
+- Workspace customization
+  - Dockable panels and alternative themes
+  - VS Code-style command palette and searchable settings
 
 ## Install
 

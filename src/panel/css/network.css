@@ -94,6 +94,19 @@
   box-shadow: inset 2px 0 var(--accent-request-strong);
 }
 
+/* Failed or blocked requests: red text in every cell, kept when selected (the selected
+   background only tints, so the red stays readable) and on focused rows. */
+.network-row.failed .network-cell-name > *,
+.network-row.failed .network-cell-status,
+.network-row.failed .network-cell-type,
+.network-row.failed .network-cell-type[data-type],
+.network-row.failed .network-cell-domain,
+.network-row.failed .network-cell-size,
+.network-row.failed .network-cell-time,
+.network-row.failed .network-cell-timestamp {
+  color: var(--red);
+}
+
 .network-cell-name {
   display: flex;
   align-items: baseline;

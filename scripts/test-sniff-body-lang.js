@@ -20,6 +20,13 @@ const context = vm.createContext({
   formatJsonText: (text) => text,
   tryPretty: () => ({ ok: false }),
 });
+vm.runInContext(
+  fs.readFileSync(
+    path.join(__dirname, "..", "src", "panel", "js", "lib", "json-payload.js"),
+    "utf8"
+  ),
+  context
+);
 const sniffBodyLang = vm.runInContext(`${source}\nsniffBodyLang`, context);
 
 const flight = '0:{"buildId":"x"}\n1:"$Sreact.fragment"\n';
@@ -32,6 +39,11 @@ const cases = [
   ["flight lines", flight, undefined, "javascript"],
   ["JSON text", '{"a":1}', "text/plain", "json"],
   ["JSON array text", "[1, 2]", undefined, "json"],
+  ["newline-delimited JSON records", '{"a":1}\n{"b":[2]}', "text/plain", "json"],
+  ["records with CRLF and trailing newline", '{"a":1}\r\n{"b":2}\r\n', undefined, "json"],
+  ["truncated last record", '{"a":1}\n{"b":', "text/plain", null],
+  ["record then prose", '{"a":1}\nplain text', undefined, null],
+  ["JSON-looking lines mixed with a scalar", '{"a":1}\n2', undefined, null],
   ["invalid JSON", "{nope", undefined, null],
   ["JS without MIME", 'import x from "y";', undefined, "javascript"],
   ["JS with application MIME", "const a = 1;", "application/octet-stream", "javascript"],

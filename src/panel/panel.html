@@ -689,6 +689,16 @@
                       Response
                     </button>
                     <button
+                      id="request-tab-initiator"
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="request-detail-panel-initiator"
+                      data-request-tab="initiator"
+                    >
+                      Initiator
+                    </button>
+                    <button
                       id="request-tab-cookies"
                       type="button"
                       role="tab"
@@ -727,6 +737,7 @@
                     <button type="button" data-body-view="parsed" aria-pressed="false">
                       Parsed
                     </button>
+                    <button type="button" data-body-view="hex" aria-pressed="false">Hex</button>
                   </div>
                 </div>
                 <div id="request-detail-body">
@@ -782,6 +793,13 @@
                     <div id="request-response-tree" class="json-tree-host" hidden></div>
                     <div id="request-response-viewer" class="request-viewer-host"></div>
                   </div>
+                  <div
+                    id="request-detail-panel-initiator"
+                    class="request-detail-panel"
+                    role="tabpanel"
+                    aria-labelledby="request-tab-initiator"
+                    hidden
+                  ></div>
                   <div
                     id="request-detail-panel-cookies"
                     class="request-detail-panel"
@@ -904,29 +922,7 @@
       </div>
 
       <!-- Context menu -->
-      <div id="context-menu" style="display: none" role="menu" aria-label="File actions">
-        <div class="ctx-item" id="ctx-open-request-url" role="menuitem" tabindex="-1">
-          Open in new tab
-        </div>
-        <div class="ctx-item" id="ctx-export-file" role="menuitem" tabindex="-1">Export file</div>
-        <div class="ctx-item" id="ctx-export-dir" role="menuitem" tabindex="-1">
-          Export directory
-        </div>
-        <div class="ctx-item" id="ctx-export-section" role="menuitem" tabindex="-1">
-          Export section
-        </div>
-        <div class="ctx-item" id="ctx-collapse-all" role="menuitem" tabindex="-1">
-          Collapse all folders
-        </div>
-        <div class="ctx-item" id="ctx-expand-all" role="menuitem" tabindex="-1">
-          Expand all folders
-        </div>
-        <div class="ctx-item" id="ctx-copy-path" role="menuitem" tabindex="-1">Copy path</div>
-        <div class="ctx-separator" role="separator"></div>
-        <div class="ctx-item" id="ctx-export-all" role="menuitem" tabindex="-1">
-          Export all sources
-        </div>
-      </div>
+      <div id="context-menu" style="display: none" role="menu" aria-label="File actions"></div>
       <div id="view-menu" style="display: none" role="menu" aria-label="View options"></div>
 
       <div
@@ -1052,11 +1048,16 @@
     <script src="../vendor/monaco/worker-map.js"></script>
     <script src="../vendor/monaco/vs/loader.js"></script>
     <script src="js/core/keybinds.js"></script>
+    <script src="js/lib/request-code.js"></script>
+    <script src="js/lib/hexdump.js"></script>
     <script src="js/editor/monaco-loader.js"></script>
     <script src="js/editor/editor.js"></script>
     <script src="js/settings/editor-settings.js"></script>
     <script src="js/core/state.js"></script>
+    <script src="js/core/request-selection.js"></script>
     <script src="js/lib/filetype.js"></script>
+    <script src="js/lib/json-payload.js"></script>
+    <script src="js/lib/source-map.js"></script>
     <script src="js/capture/discovery.js"></script>
     <script src="js/capture/raw-capture.js"></script>
     <script src="js/capture/request-capture.js"></script>
@@ -1067,9 +1068,11 @@
     <script src="js/network/network-table.js"></script>
     <script src="js/network/request-body.js"></script>
     <script src="js/network/body-trees.js"></script>
+    <script src="js/network/initiator.js"></script>
     <script src="js/network/request-detail.js"></script>
     <script src="js/workbench/tabs-preview.js"></script>
     <script src="js/workbench/export.js"></script>
+    <script src="js/workbench/context-menu.js"></script>
     <script src="js/workbench/search.js"></script>
     <script src="js/settings/app-settings.js"></script>
     <script src="js/workbench/layout.js"></script>

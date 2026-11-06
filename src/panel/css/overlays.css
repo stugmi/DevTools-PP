@@ -118,6 +118,7 @@ kbd {
 
 /* -- Context and view menus -- */
 #context-menu,
+.context-submenu,
 #view-menu {
   position: fixed;
   background: var(--bg-2);
@@ -126,10 +127,19 @@ kbd {
   padding: 3px 0;
   z-index: 1000;
   min-width: 170px;
+  max-height: calc(100vh - 8px);
+  max-width: calc(100vw - 8px);
+  overflow: auto;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 .ctx-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
   padding: 5px 14px;
   font-size: var(--fs-md);
   color: var(--text-primary);
@@ -145,6 +155,12 @@ kbd {
 
 .ctx-item:focus-visible {
   outline: none;
+}
+
+.ctx-submenu-trigger {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
 }
 
 .ctx-separator {

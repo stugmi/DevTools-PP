@@ -280,21 +280,27 @@ function resetPreview() {
   showPlaceholder("No item selected");
 }
 
-async function selectFile(path, section, position) {
+// `options.keepList` re-shows a tab's document (workspace restore) without touching the list
+// focus or a batch selection: each list keeps its own selection independent of the document.
+async function selectFile(path, section, position, { keepList = false } = {}) {
+  // Re-rendering the document that is already displayed (live capture updates) must not
+  // move the list focus or collapse a multi-selection.
+  const redisplay = keepList || (state.selectedSection === section && state.selectedPath === path);
   state.selectedPath = path;
   state.selectedSection = section;
 
   // Each list view keeps its own highlight; only the section's own view is touched.
   if (section === "requests") {
-    state.listSelection.network = path;
+    if (!redisplay || state.listSelection.network === null) RequestSelection.focus(path);
     revealFileInTree(path, section);
     syncNetworkRowSelection();
   } else {
-    state.listSelection.files = { path, section };
+    if (!keepList || !state.listSelection.files) state.listSelection.files = { path, section };
+    const focused = state.listSelection.files;
     document
       .querySelectorAll(".tree-node.selected")
       .forEach((node) => node.classList.remove("selected"));
-    const row = revealFileInTree(path, section);
+    const row = revealFileInTree(focused.path, focused.section);
     if (row) row.classList.add("selected");
   }
 

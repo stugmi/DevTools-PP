@@ -144,6 +144,37 @@ window.AppSettings = (() => {
       },
     },
     {
+      id: "requestCopyFormat",
+      section: "Network",
+      label: "Default Copy as format",
+      description:
+        "Preferred request replay format. Other formats remain available in the request menu.",
+      type: "select",
+      options: RequestCode.FORMATS,
+      default: RequestCode.DEFAULT_FORMAT,
+      get: () => prefs.requestCopyFormat,
+      set(value) {
+        if (RequestCode.FORMATS.some((format) => format.value === value)) {
+          setPref("requestCopyFormat", value);
+        }
+      },
+    },
+    {
+      id: "requestCodeLineWidth",
+      section: "Network",
+      label: "Replay line width",
+      description:
+        "Preferred width for copied request code (40-160 columns). Shell transport commands may exceed it.",
+      type: "number",
+      min: 40,
+      max: 160,
+      default: RequestCode.DEFAULT_LINE_WIDTH,
+      get: () => prefs.requestCodeLineWidth,
+      set(value) {
+        setPref("requestCodeLineWidth", RequestCode.normalizeLineWidth(value));
+      },
+    },
+    {
       id: "prettyOnExport",
       section: "Export",
       label: "Pretty-format files on export",

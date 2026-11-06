@@ -159,6 +159,7 @@ function resetCapture() {
   state.listSelection = { network: null, files: null };
   state.tabs = [];
   state.activeTabId = null;
+  state.parkedActiveTabs = { network: null, files: null };
   openDirs.clear();
   userToggledDirs.clear();
   el.btnExportAll.disabled = true;

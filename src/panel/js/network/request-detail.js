@@ -1,6 +1,7 @@
-// Request detail view: Headers, Payload, Response, Preview and Timing panels plus footer controls.
-// Loaded last of the network files (after cookies.js, request-body.js and body-trees.js). Wiring
-// for the body toggle, payload splitter and footer buttons runs at load time.
+// Request detail view: Headers, Payload, Response, Preview, Initiator and Timing panels plus
+// footer controls. Loaded last of the network files (after cookies.js, request-body.js,
+// body-trees.js and initiator.js). Wiring for the body toggle, payload splitter and footer
+// buttons runs at load time.
 
 "use strict";
 
@@ -53,22 +54,108 @@ function requestDetailPanel(tab) {
   return document.getElementById(`request-detail-panel-${tab}`);
 }
 
+// Source / Parsed / Hex toggle for Payload and Response. Parsed and Hex only appear when the body
+// has something to show there; the active button follows the view actually shown.
 function updateBodyViewToggle(entry, tab) {
   const toggle = document.getElementById("request-body-view-toggle");
   if (!toggle) return;
-  if (!isBodyTab(tab)) {
+  if (!isBodyTab(tab) || isBodyPlaceholder(entry, tab)) {
     toggle.hidden = true;
     return;
   }
-  toggle.hidden = isBodyPlaceholder(entry, tab) || !parsedBodyFor(entry, tab);
-  if (toggle.hidden) return;
+  const available = {
+    source: true,
+    parsed: !!parsedBodyFor(entry, tab),
+    hex: hexBodyFor(entry, tab).result.status !== "absent",
+  };
+  const shown = bodyViewFor(entry, tab);
+  let visible = 0;
+  for (const button of toggle.querySelectorAll("button[data-body-view]")) {
+    const view = button.dataset.bodyView;
+    const active = view === shown;
+    button.hidden = !available[view];
+    if (!button.hidden) visible++;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+  toggle.hidden = visible < 2;
+}
 
-  const buttons = toggle.querySelectorAll("button");
-  const parsedActive = getBodyParsed(tab);
-  buttons[0].classList.toggle("active", !parsedActive);
-  buttons[1].classList.toggle("active", parsedActive);
-  buttons[0].setAttribute("aria-pressed", String(!parsedActive));
-  buttons[1].setAttribute("aria-pressed", String(parsedActive));
+// Note and page controls above the hex dump, created on first use (one per body tab).
+const hexBars = {};
+
+function hexBarFor(tab, viewerHost) {
+  if (hexBars[tab]) return hexBars[tab];
+  const element = document.createElement("div");
+  element.className = "request-hex-bar";
+  element.hidden = true;
+  const note = document.createElement("span");
+  note.className = "request-hex-note";
+  const pager = document.createElement("span");
+  pager.className = "request-hex-pager";
+  pager.setAttribute("role", "group");
+  pager.setAttribute("aria-label", "Hex dump pages");
+  const label = document.createElement("span");
+  label.className = "request-hex-page";
+  label.setAttribute("aria-live", "polite");
+  const buttons = {};
+  for (const [action, text] of [
+    ["first", "First"],
+    ["prev", "Prev"],
+    ["next", "Next"],
+    ["last", "Last"],
+  ]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = text;
+    button.dataset.hexPage = action;
+    buttons[action] = button;
+  }
+  pager.append(buttons.first, buttons.prev, label, buttons.next, buttons.last);
+  element.append(note, pager);
+  viewerHost.before(element);
+  pager.addEventListener("click", (event) => {
+    const action = event.target.closest("button[data-hex-page]")?.dataset.hexPage;
+    const entry = state.requestTree[state.selectedPath];
+    const page = entry && hexPageFor(entry, tab);
+    if (!action || !page) return;
+    const target = { first: 0, prev: page.page - 1, next: page.page + 1, last: page.pages - 1 };
+    setHexPage(entry, tab, target[action]);
+    showSelectedRequestTab({ chrome: false });
+  });
+  return (hexBars[tab] = { element, note, pager, label, buttons });
+}
+
+function hideHexBar(tab) {
+  if (hexBars[tab]) hexBars[tab].element.hidden = true;
+}
+
+// The Hex view: a paged dump in the read-only viewer, or the reason there are no bytes to dump.
+function renderHexArea({ entry, tab, treeHost, viewerHost }) {
+  const bar = hexBarFor(tab, viewerHost);
+  const slot = hexBodyFor(entry, tab);
+  const page = hexPageFor(entry, tab);
+  if (!page) {
+    bar.element.hidden = true;
+    viewerHost.hidden = true;
+    treeHost.hidden = false;
+    treeHost.replaceChildren(requestDetailEmpty(slot.note));
+    return;
+  }
+  treeHost.hidden = true;
+  viewerHost.hidden = false;
+  const viewer = tab === "payload" ? ensurePayloadViewer() : ensureResponseViewer();
+  viewer.setContent(page.text, "plaintext", { resetScroll: true });
+  viewer.setWrap(false);
+
+  bar.element.hidden = false;
+  bar.note.textContent = slot.note;
+  bar.note.title = slot.note;
+  bar.pager.hidden = page.pages < 2;
+  const range = `0x${page.start.toString(16)}-0x${(page.end - 1).toString(16)}`;
+  bar.label.textContent = `Page ${page.page + 1} of ${page.pages} (${range})`;
+  bar.buttons.first.disabled = bar.buttons.prev.disabled = page.page === 0;
+  bar.buttons.next.disabled = bar.buttons.last.disabled = page.page === page.pages - 1;
 }
 
 // -- Headers tab (modelled on Chrome DevTools) --
@@ -225,7 +312,8 @@ function renderHeadersPanel(entry) {
 }
 
 // Which tabs a request actually has: Payload only with params or a body, Cookies only when
-// any were sent or set.
+// any were sent or set. Initiator is always listed; it explains itself when nothing was
+// captured.
 function availableRequestTabs(entry) {
   const { request } = entry._record;
   const cookies = requestCookies(entry);
@@ -237,16 +325,21 @@ function availableRequestTabs(entry) {
     tabs.push("payload");
   }
   if (responsePreviewKind(entry)) tabs.push("preview");
-  tabs.push("response");
+  tabs.push("response", "initiator");
   if (cookies.request.length || cookies.response.length) tabs.push("cookies");
   tabs.push("timing");
   return tabs;
 }
 
-// Shared by Payload and Response: renders one body area, either the source text viewer or the
-// parsed tree (JSON value or HTML/XML document), depending on the Source/Parsed toggle and
-// whether the body parses at all.
+// Shared by Payload and Response: renders one body area, either the source text viewer, the
+// parsed tree (JSON value or HTML/XML document) or the hex dump, depending on the
+// Source/Parsed/Hex toggle and whether the body parses at all.
 function renderBodyArea({ entry, tab, treeHost, viewerHost, sourceText, mime }) {
+  if (bodyViewFor(entry, tab) === "hex") {
+    renderHexArea({ entry, tab, treeHost, viewerHost });
+    return;
+  }
+  hideHexBar(tab);
   const parsed = shownParsedBody(entry, tab);
   treeHost.hidden = !parsed;
   viewerHost.hidden = !!parsed;
@@ -293,6 +386,7 @@ function renderPayloadPanel(entry) {
     meta.style.height = "";
     treeHost.hidden = true;
     viewerHost.hidden = true;
+    hideHexBar("payload");
     return;
   }
 
@@ -332,6 +426,7 @@ function renderResponsePanel(entry) {
   const placeholder = responsePlaceholderText(entry);
   if (placeholder) {
     viewerHost.hidden = true;
+    hideHexBar("response");
     treeHost.hidden = false;
     treeHost.replaceChildren(requestDetailEmpty(placeholder));
     return;
@@ -415,6 +510,11 @@ function renderPreviewPanel(entry) {
   if (frame.srcdoc !== doc) frame.srcdoc = doc;
 }
 
+function renderInitiatorPanel(entry) {
+  const panel = requestDetailPanel("initiator");
+  if (panel) panel.replaceChildren(RequestInitiator.render(entry));
+}
+
 function renderTimingPanel(entry) {
   const panel = requestDetailPanel("timing");
   if (!panel) return;
@@ -435,8 +535,9 @@ document.getElementById("request-body-view-toggle")?.addEventListener("click", (
   const button = event.target.closest("button[data-body-view]");
   if (!button) return;
   const tab = currentRequestTab();
-  if (!isBodyTab(tab)) return;
-  setBodyParsed(tab, button.dataset.bodyView === "parsed");
+  const entry = state.requestTree[state.selectedPath];
+  if (!entry || !isBodyTab(tab)) return;
+  setBodyView(entry, tab, button.dataset.bodyView);
   showSelectedRequestTab({ chrome: false });
 });
 
@@ -501,27 +602,35 @@ function setRequestWrap(enabled) {
 }
 
 // Wrap and Format live in the footer (like the file editor's controls) and only apply to the
-// Source view of Payload and Response.
+// Source view of Payload and Response; the language override applies to Source and Parsed.
 function updateRequestFooterControls(entry, tab) {
   const bodyTab = isBodyTab(tab);
-  const sourceView = bodyTab && !isBodyPlaceholder(entry, tab) && !shownParsedBody(entry, tab);
+  const view = bodyTab && !isBodyPlaceholder(entry, tab) ? bodyViewFor(entry, tab) : null;
   for (const [button, on] of [
     [el.btnRequestFormat, state.requestDetailFormat],
     [el.btnRequestWrap, state.requestDetailWrap],
   ]) {
-    button.hidden = !sourceView;
+    button.hidden = view !== "source";
     button.classList.toggle("active", Boolean(on));
     button.setAttribute("aria-pressed", on ? "true" : "false");
   }
 
   const select = el.selRequestLang;
-  select.hidden = !(bodyTab && !isBodyPlaceholder(entry, tab));
+  select.hidden = !view || view === "hex";
   if (select.hidden) return;
   const override = requestBodyOverrides(entry)[tab];
   const { lang } = bodyLanguageFor(entry, tab);
   const label = BODY_LANG_OPTIONS.find(([id]) => id === lang)?.[1] ?? lang;
   select.options[0].textContent = override === "auto" ? `Auto (${label})` : "Auto";
   select.value = override;
+}
+
+// What the footer Copy button copies: the record JSON, or the shown hex page in the Hex view.
+function requestCopyText(entry, tab) {
+  if (isBodyTab(tab) && !isBodyPlaceholder(entry, tab) && bodyViewFor(entry, tab) === "hex") {
+    return hexPageFor(entry, tab)?.text || entry.content;
+  }
+  return entry.content;
 }
 
 function populateRequestLangSelect() {
@@ -573,17 +682,27 @@ function currentRequestTab(entry = state.requestTree[state.selectedPath]) {
 // this, not renderRequestChrome.
 function renderRequestDetailBody(entry) {
   const tab = renderRequestTabs(entry);
-  for (const name of ["headers", "payload", "preview", "response", "cookies", "timing"]) {
+  for (const name of [
+    "headers",
+    "payload",
+    "preview",
+    "response",
+    "initiator",
+    "cookies",
+    "timing",
+  ]) {
     const panel = requestDetailPanel(name);
     if (panel) panel.hidden = name !== tab;
   }
   updateBodyViewToggle(entry, tab);
   updateRequestFooterControls(entry, tab);
+  state.lastPreviewText = requestCopyText(entry, tab);
 
   if (tab === "headers") return renderHeadersPanel(entry);
   if (tab === "payload") return renderPayloadPanel(entry);
   if (tab === "preview") return renderPreviewPanel(entry);
   if (tab === "response") return renderResponsePanel(entry);
+  if (tab === "initiator") return renderInitiatorPanel(entry);
   if (tab === "cookies") return renderCookiesPanel(entry);
   return renderTimingPanel(entry);
 }

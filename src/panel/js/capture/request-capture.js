@@ -27,6 +27,48 @@ function cookiesFromHAR(cookies) {
   }));
 }
 
+// -- Failure metadata --
+// Chrome's HAR carries the failure of a request in `response._error` (the request's
+// localizedFailDescription, e.g. "net::ERR_BLOCKED_BY_CLIENT"); it is null for requests that
+// completed. The CDP blockedReason is not in the HAR, so "blocked" is only claimed when the
+// error text itself names ERR_BLOCKED_BY_*. Status 0 or a missing status alone is not a failure.
+// Source: https://github.com/ChromeDevTools/devtools-frontend/blob/main/front_end/models/har/Log.ts
+const REQUEST_ERROR_MAX = 500;
+
+// Plain-data failure snapshot { error, blocked } or null; safe to keep after the live request
+// is released.
+function requestFailureFromHAR(entry) {
+  const raw = entry?.response?._error ?? entry?._error;
+  if (typeof raw !== "string") return null;
+  const error = raw.trim().slice(0, REQUEST_ERROR_MAX);
+  if (!error) return null;
+  return { error, blocked: /^(?:net::)?ERR_BLOCKED_BY_/i.test(error) };
+}
+
+// How a record's status shows in the table: { text, kind, failed, title }. kind is one of
+// blocked, failed, error (HTTP 4xx/5xx), redirect, ok, pending. `failed` (blocked or failed)
+// drives the red row; `title` is the captured reason, or "" when there is none.
+function requestStatusView(record) {
+  const response = record?.response;
+  const rawStatus = response?.status;
+  const status = rawStatus == null || !Number.isFinite(Number(rawStatus)) ? 0 : Number(rawStatus);
+  const failure = response?.failure;
+  if (failure?.error) {
+    const kind = failure.blocked ? "blocked" : "failed";
+    const label = failure.blocked ? "(blocked)" : "(failed)";
+    return {
+      text: status > 0 ? `${status} ${label}` : label,
+      kind,
+      failed: true,
+      title: failure.error,
+    };
+  }
+  if (status >= 400) return { text: String(status), kind: "error", failed: false, title: "" };
+  if (status >= 300) return { text: String(status), kind: "redirect", failed: false, title: "" };
+  if (status >= 100) return { text: String(status), kind: "ok", failed: false, title: "" };
+  return { text: "-", kind: "pending", failed: false, title: "" };
+}
+
 function paramsToObject(params) {
   const body = Object.create(null);
   for (const param of params || []) {
@@ -94,6 +136,39 @@ function structuredBody(text, mimeType, params, encoding) {
   }
   if (params?.length) return paramsToObject(params);
   return undefined;
+}
+
+function validBase64(text) {
+  if (typeof text !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(text) || text.length % 4 === 1) {
+    return false;
+  }
+  try {
+    atob(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Original request body bytes, only when the entry actually exposes them: HAR
+// postData.encoding "base64" (text is the base64) or CDP-style postDataEntries[].bytes.
+// Normal DevTools HAR carries only decoded postData.text, so this returns null for it; the
+// text is never re-encoded or Latin-1 reinterpreted here. Plain data, safe to retain.
+function snapshotRequestBodyBytes(request, encoding) {
+  const postData = request?.postData;
+  if (encoding === "base64" && validBase64(postData?.text)) {
+    return { base64: postData.text, source: "postData.base64" };
+  }
+  const entries = [
+    request?.postDataEntries,
+    request?._postDataEntries,
+    postData?.postDataEntries,
+    postData?._postDataEntries,
+  ].find(Array.isArray);
+  if (!entries?.length || !entries.every((item) => validBase64(item?.bytes))) return null;
+  if (entries.length === 1) return { base64: entries[0].bytes, source: "postDataEntries" };
+  const chunks = entries.map(({ bytes }) => atob(bytes));
+  return { base64: btoa(chunks.join("")), source: "postDataEntries" };
 }
 
 // Resolves `{content, encoding, reason}`; `reason` explains a missing body when known.
@@ -183,6 +258,9 @@ function migrateRawTabToRequest(url, requestPath) {
     tab.dirty = false;
   }
   if (state.activeTabId === oldId) state.activeTabId = newId;
+  for (const ws of Object.keys(state.parkedActiveTabs)) {
+    if (state.parkedActiveTabs[ws] === oldId) state.parkedActiveTabs[ws] = newId;
+  }
   const wasSelected = state.selectedSection === "raw" && state.selectedPath === location.path;
   if (wasSelected) {
     state.selectedSection = "requests";
@@ -191,7 +269,7 @@ function migrateRawTabToRequest(url, requestPath) {
   const filesSelection = state.listSelection.files;
   if (filesSelection?.section === "raw" && filesSelection.path === location.path) {
     state.listSelection.files = null;
-    state.listSelection.network = requestPath;
+    RequestSelection.selectOnly(requestPath);
   }
   return wasSelected;
 }
@@ -313,6 +391,84 @@ function loadRequestResponse(entry) {
   return entry._responsePromise;
 }
 
+// -- Initiator --
+// Chrome's HAR `_initiator` (Network.Initiator): `type`, `url`, zero-based `lineNumber` and
+// `columnNumber`, and `stack` (call frames plus a `parent` chain of async stacks). It is copied
+// into plain data before the live request handle is released. Everything is untrusted page
+// data: strings are length-capped, positions must be non-negative integers, and the stack is
+// bounded in depth and total frame count.
+const INITIATOR_TEXT_MAX = 2048;
+const INITIATOR_MAX_STACKS = 32;
+const INITIATOR_MAX_FRAMES = 200;
+
+function initiatorText(value) {
+  if (typeof value !== "string") return null;
+  return value.length > INITIATOR_TEXT_MAX ? value.slice(0, INITIATOR_TEXT_MAX) : value;
+}
+
+function initiatorPosition(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+// Returns `{description, frames, parent, parentMissing}` linked through `parent`, or null.
+// `budget.frames` is the remaining frame allowance; `budget.truncated` records any cut.
+function snapshotInitiatorStack(stack, budget) {
+  let head = null;
+  let tail = null;
+  let depth = 0;
+  while (stack && typeof stack === "object") {
+    if (depth >= INITIATOR_MAX_STACKS || budget.frames <= 0) {
+      budget.truncated = true;
+      break;
+    }
+    const node = {
+      description: initiatorText(stack.description) || null,
+      frames: [],
+      parent: null,
+      // An async parent was announced (parentId) but its frames were not provided.
+      parentMissing: !stack.parent && Boolean(stack.parentId),
+    };
+    const callFrames = Array.isArray(stack.callFrames) ? stack.callFrames : [];
+    for (const frame of callFrames) {
+      if (!frame || typeof frame !== "object") continue;
+      if (budget.frames <= 0) {
+        budget.truncated = true;
+        break;
+      }
+      budget.frames--;
+      node.frames.push({
+        functionName: initiatorText(frame.functionName) ?? "",
+        url: initiatorText(frame.url) || null,
+        lineNumber: initiatorPosition(frame.lineNumber),
+        columnNumber: initiatorPosition(frame.columnNumber),
+      });
+    }
+    if (tail) tail.parent = node;
+    else head = node;
+    tail = node;
+    depth++;
+    stack = stack.parent;
+  }
+  return head;
+}
+
+// Plain-data copy of a HAR entry's `_initiator`, or null when it carries nothing.
+function snapshotInitiator(initiator) {
+  if (!initiator || typeof initiator !== "object") return null;
+  const budget = { frames: INITIATOR_MAX_FRAMES, truncated: false };
+  const snapshot = {
+    type: initiatorText(initiator.type) || null,
+    url: initiatorText(initiator.url) || null,
+    lineNumber: initiatorPosition(initiator.lineNumber),
+    columnNumber: initiatorPosition(initiator.columnNumber),
+    stack: snapshotInitiatorStack(initiator.stack, budget),
+    truncated: false,
+  };
+  snapshot.truncated = budget.truncated;
+  const hasData = snapshot.type || snapshot.url || snapshot.stack;
+  return hasData ? snapshot : null;
+}
+
 // Returns true when a new request entry was added. `deferRebuild` leaves the UI refresh to
 // the caller (used when capturing in bulk or when rebuilds are debounced).
 function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) {
@@ -326,6 +482,7 @@ function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) 
   const responseContentType = contentTypeFromHAR(entry);
   const requestContentType = requestContentTypeFromHAR(entry);
   const responseText = entry.response?.content?.text ?? null;
+  const requestEncoding = request.postData?.encoding || request.postData?._encoding || null;
   const responseEncoding = entry.response?.content?.encoding ?? null;
 
   state.capturedRequestKeys.add(captureKey);
@@ -333,12 +490,17 @@ function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) 
   const path = requestPathFor(url, entry._resourceType || "fetch");
   if (responseContentType) state.contentTypesByURL.set(url, responseContentType);
 
-  const requestBody = structuredBody(
-    request.postData?.text,
-    requestContentType,
-    request.postData?.params,
-    null
-  );
+  const requestBodyBytes = snapshotRequestBodyBytes(request, requestEncoding);
+  const requestBody =
+    request.postData?.text == null && requestBodyBytes
+      ? { encoding: "base64", data: requestBodyBytes.base64 }
+      : structuredBody(
+          request.postData?.text,
+          requestContentType,
+          request.postData?.params,
+          requestEncoding
+        );
+  const failure = requestFailureFromHAR(entry);
   const record = {
     capturedAt: entry.startedDateTime || new Date().toISOString(),
     durationMs: entry.time ?? null,
@@ -353,10 +515,12 @@ function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) 
       cookies: cookiesFromHAR(request.cookies),
       bodySize: request.bodySize ?? null,
       bodyMimeType: requestContentType,
+      ...(requestEncoding ? { bodyEncoding: requestEncoding } : {}),
       ...(requestBody === undefined ? {} : { body: requestBody }),
     },
     response: {
       status: entry.response?.status ?? null,
+      ...(failure ? { failure } : {}),
       statusText: entry.response?.statusText || "",
       httpVersion: entry.response?.httpVersion || null,
       headers: headersFromHAR(entry.response?.headers),
@@ -393,8 +557,27 @@ function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) 
     // The live request is only kept while a body may still be fetched through getContent.
     _request: responseText == null ? entry : null,
     _requestType: entry._resourceType || null,
+    // Plain-data copy of the HAR `_initiator`; survives the release of `_request` above.
+    _initiator: snapshotInitiator(entry._initiator),
+    // Scan generation the request was captured in. Frame locations resolve against retained
+    // maps and scripts only while this equals state.scanGeneration (see network/initiator.js).
+    _initiatorGeneration: state.scanGeneration,
     _record: record,
     _rawRequestBody: request.postData?.text ?? null,
+    // Exact original body bytes when the entry exposed them (see snapshotRequestBodyBytes).
+    _requestBodyBytes: requestBodyBytes,
+    _requestPostData: request.postData
+      ? {
+          mimeType: request.postData.mimeType || requestContentType,
+          encoding: requestEncoding,
+          params: (request.postData.params || []).map(({ name, value, fileName, contentType }) => ({
+            name,
+            value,
+            fileName,
+            contentType,
+          })),
+        }
+      : null,
     _rawResponseBody: responseText,
     _responseBodyCache: null,
     _responseStatus: responseText == null ? "idle" : "loaded",

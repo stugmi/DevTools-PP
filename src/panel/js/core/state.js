@@ -17,6 +17,8 @@ const PREF_KEYS = {
   workspace: "se.workspace",
   formatBodies: "se.formatBodies",
   archiveFormat: "se.archiveFormat",
+  requestCopyFormat: "se.requestCopyFormat",
+  requestCodeLineWidth: "se.requestCodeLineWidth",
   tsDiagnostics: "se.tsDiagnostics",
 };
 
@@ -48,6 +50,12 @@ const prefs = {
   // Pretty-print request/response bodies in the Network detail view. On unless turned off.
   formatBodies: readPref("formatBodies") !== "0",
   archiveFormat: readPref("archiveFormat") === "tar" ? "tar" : "zip",
+  requestCopyFormat: RequestCode.FORMATS.some(
+    ({ value }) => value === readPref("requestCopyFormat")
+  )
+    ? readPref("requestCopyFormat")
+    : RequestCode.DEFAULT_FORMAT,
+  requestCodeLineWidth: RequestCode.normalizeLineWidth(readPref("requestCodeLineWidth")),
   // How strictly TypeScript checks authored files: "smart" | "syntax" | "off".
   tsDiagnostics: ["smart", "syntax", "off"].find((v) => v === readPref("tsDiagnostics")) ?? "smart",
 };
@@ -82,6 +90,9 @@ function createCaptureState() {
     rawByURL: new Map(),
     requestPathCounts: new Map(),
     capturedRequestKeys: new Set(),
+    // Request list selection (see core/request-selection.js). `paths` keeps selected request
+    // paths even while filters hide them; `anchor` is the start of Shift-click ranges.
+    requestSelection: { anchor: null, paths: new Set() },
     requestOccurrences: new Map(),
     requestCaptureSequence: 0,
     contentTypesByURL: new Map(),
@@ -134,8 +145,9 @@ const state = {
   },
   selectedPath: null,
   selectedSection: null,
-  // Per-list highlight, independent of the preview document above.
-  // network = request path; files = { path, section }.
+  // Per-list focus, independent of the preview document above.
+  // network = focused request path (selected paths live in requestSelection);
+  // files = { path, section }.
   listSelection: { network: null, files: null },
   contextTarget: null,
   filterText: "",
@@ -145,6 +157,9 @@ const state = {
   lastPreviewBadge: null,
   tabs: [],
   activeTabId: null,
+  // The active tab each workspace was showing when the other one took over; switchWorkspace
+  // parks and restores it so leaving a workspace never loses its detail view.
+  parkedActiveTabs: { network: null, files: null },
   prettyView: prefs.prettyDefault,
   workspaceSearchCaseSensitive: false,
   workspaceSearchRegex: false,
@@ -212,13 +227,6 @@ const el = {
   previewScriptUrl: $("preview-script-url"),
   previewMapUrl: $("preview-map-url"),
   contextMenu: $("context-menu"),
-  ctxExportFile: $("ctx-export-file"),
-  ctxExportDir: $("ctx-export-dir"),
-  ctxExportAll: $("ctx-export-all"),
-  ctxExportSection: $("ctx-export-section"),
-  ctxCollapseAll: $("ctx-collapse-all"),
-  ctxExpandAll: $("ctx-expand-all"),
-  ctxCopyPath: $("ctx-copy-path"),
   progressOverlay: $("progress-overlay"),
   progressBar: $("progress-bar"),
   progressTitle: $("progress-title"),
@@ -371,11 +379,23 @@ function tabsForWorkspace(ws) {
   return state.tabs.filter((t) => workspaceForSection(t.section) === ws);
 }
 
+// Remembers the active tab under the workspace it belongs to (normally the visible one, but a
+// capture migration can leave it pointing at the other). The visible workspace is cleared first
+// so a dismissed detail view is not resurrected.
+function parkActiveTab() {
+  const active = state.tabs.find((tab) => tab.id === state.activeTabId);
+  state.parkedActiveTabs[state.workspace] = null;
+  if (active) state.parkedActiveTabs[workspaceForSection(active.section)] = active.id;
+}
+
 function switchWorkspace(ws) {
   if (state.workspace === ws) return;
+  parkActiveTab();
   state.workspace = ws;
   prefs.workspace = ws;
   savePref("workspace", ws);
+  const parked = state.parkedActiveTabs[ws];
+  state.activeTabId = tabsForWorkspace(ws).some((tab) => tab.id === parked) ? parked : null;
   window.PanelLayout?.applyWorkspace(ws);
   // The network table is only rendered while its workspace is visible: catch up now.
   refreshNetwork();

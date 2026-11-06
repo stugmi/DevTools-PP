@@ -26,6 +26,7 @@
 // [Enter / Space]      Open a tree file or toggle a folder or section
 // [Left/Right]         Collapse/expand the focused tree folder
 // [Shift + F10]        Open the context menu of the focused tree item
+// [Left/Right]         Leave/enter a context submenu
 // [Arrows]             Resize a focused splitter (Shift for bigger steps)
 // [Esc]                Cancel a cookie cell edit or a view drag
 //
@@ -125,6 +126,18 @@ window.Keybinds = (() => {
     },
 
     // Lists and inline editing
+    {
+      id: "menu.child",
+      keys: ["Right"],
+      description: "Open the focused submenu",
+      scope: "menu",
+    },
+    {
+      id: "menu.parent",
+      keys: ["Left"],
+      description: "Return to the parent menu",
+      scope: "menu",
+    },
     {
       id: "list.previous",
       keys: ["Up"],

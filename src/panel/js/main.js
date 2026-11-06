@@ -152,7 +152,11 @@ el.workspaceTabs.addEventListener("click", (event) => {
   const ws = button.dataset.workspace;
   if (ws === state.workspace) return;
   switchWorkspace(ws);
-  ensureActiveTab(ws);
+  // switchWorkspace restored this workspace's own active tab: show its document again
+  // without moving the list focus or collapsing a batch selection.
+  const restored = state.tabs.find((tab) => tab.id === state.activeTabId);
+  if (restored) selectFile(restored.path, restored.section, undefined, { keepList: true });
+  else ensureActiveTab(ws);
   renderTabs();
 });
 

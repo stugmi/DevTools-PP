@@ -1,6 +1,5 @@
-// Request/response body helpers: language detection, formatting, parsing and the Parsed toggle.
-// Loaded after filetype.js (langFromContentType, formatJsonText, tryPretty) and before
-// body-trees.js and request-detail.js.
+// Request/response body language, formatting, parsing, and Source/Parsed/Hex view state.
+// Uses filetype.js, json-payload.js, and hexdump.js; rendered by request-detail.js.
 
 "use strict";
 
@@ -75,11 +74,8 @@ function sniffBody(body, mime) {
   const head = body.slice(0, 4096).trimStart();
   if (!head) return { lang: null };
   if ((head[0] === "{" || head[0] === "[") && body.length <= FORMAT_BODY_LIMIT) {
-    try {
-      return { lang: "json", json: parseJsonExact(body) };
-    } catch {
-      // Not plain JSON, keep sniffing.
-    }
+    const parsed = parseJsonPayload(body);
+    if (parsed) return { lang: "json", json: parsed.value };
   }
   const markup = head[0] === "<" ? head.replace(LEADING_COMMENTS, "") : head;
   if (HTML_START.test(markup)) return { lang: "html" };
@@ -158,9 +154,9 @@ function formatBodyText(text, lang, mime, forced = false) {
   const trimmed = text.trim();
   if (lang === "json" || (lang === "plaintext" && /^[[{]/.test(trimmed))) {
     try {
-      return { text: formatJsonText(trimmed) + "\n", lang: "json" };
+      return { text: formatJsonPayloadText(trimmed), lang: "json" };
     } catch {
-      // Not valid JSON, fall through.
+      // Not valid JSON or JSON records, fall through.
     }
   }
   if (!forced && /x-www-form-urlencoded/i.test(mime || "")) {
@@ -212,11 +208,8 @@ function parseBody(body, lang, json) {
   if (lang === "json") {
     if (json !== undefined) return { kind: "json", value: json };
     if (body.length > PARSE_JSON_LIMIT) return tooLargeToParse(body.length);
-    try {
-      return { kind: "json", value: parseJsonExact(body) };
-    } catch {
-      return null;
-    }
+    const parsed = parseJsonPayload(body);
+    return parsed ? { kind: "json", value: parsed.value } : null;
   }
   if (lang === "html" || lang === "xml") {
     if (body.length > PARSE_MARKUP_LIMIT) return tooLargeToParse(body.length);
@@ -249,22 +242,86 @@ function parsedBodyFor(entry, tab) {
   return result;
 }
 
-// Payload and Response keep independent Source/Parsed toggles, keyed by tab, so switching tabs
-// or requests never leaks one's state into the other.
-function bodyParsedState() {
-  return (state.requestBodyParsedByTab ??= { payload: false, response: false });
+// -- Body view mode: Source, Parsed or Hex --
+
+// Payload and Response keep independent view preferences, keyed by tab, so switching tabs or
+// requests never leaks one's state into the other. Choosing a view also records it on the entry
+// (`_bodyViewChoice`), which beats the default that binary bodies open in Hex.
+function bodyViewPrefs() {
+  return (state.requestBodyViewByTab ??= { payload: "source", response: "source" });
 }
 
-function getBodyParsed(tab) {
-  return !!bodyParsedState()[tab];
+function setBodyView(entry, tab, view) {
+  (entry._bodyViewChoice ??= {})[tab] = view;
+  bodyViewPrefs()[tab] = view;
 }
 
-function setBodyParsed(tab, value) {
-  bodyParsedState()[tab] = value;
+// Byte extraction and the current dump page for a tab, kept in one slot per tab (the last body
+// shown) so the bytes are not retained for every request ever viewed and re-renders that only
+// toggle wrap or format do not re-extract a large body.
+const hexBodySlots = { payload: null, response: null };
+
+function hexBodyFor(entry, tab) {
+  const isResponse = tab === "response";
+  const raw = isResponse ? entry._rawResponseBody : entry._rawRequestBody;
+  const explicit = isResponse ? null : entry._requestBodyBytes;
+  const encoding = bodySide(entry, tab).bodyEncoding;
+  const slot = hexBodySlots[tab];
+  if (
+    slot &&
+    slot.entry === entry &&
+    slot.raw === raw &&
+    slot.explicit === explicit &&
+    slot.encoding === encoding
+  ) {
+    return slot;
+  }
+  const result = isResponse ? HexDump.responseBody(entry) : HexDump.requestBody(entry);
+  return (hexBodySlots[tab] = {
+    entry,
+    raw,
+    explicit,
+    encoding,
+    result,
+    note: HexDump.describe(result, isResponse ? "response" : "request"),
+    page: 0,
+    shown: null,
+  });
 }
 
-// The parsed body a tab shows instead of source text: only when Parsed is selected and the
-// body actually parses.
+// The dump page being shown (clamped to the body), or null when there are no bytes.
+function hexPageFor(entry, tab) {
+  const slot = hexBodyFor(entry, tab);
+  if (slot.result.status !== "bytes") return null;
+  if (!slot.shown || slot.shown.page !== slot.page) {
+    slot.shown = HexDump.dump(slot.result.bytes, slot.page);
+    slot.page = slot.shown.page;
+  }
+  return slot.shown;
+}
+
+function setHexPage(entry, tab, page) {
+  hexBodyFor(entry, tab).page = page;
+}
+
+// The view a tab actually shows: the entry's own choice, else Hex for binary or undecodable
+// bodies, else the tab's preference; falling back to Source when that view has nothing to show.
+function bodyViewFor(entry, tab) {
+  const { result } = hexBodyFor(entry, tab);
+  let want = entry._bodyViewChoice?.[tab];
+  if (!want) {
+    if (HexDump.prefersHex(result)) want = "hex";
+    else {
+      want = bodyViewPrefs()[tab];
+      if (want === "hex" && result.status !== "bytes") want = "source";
+    }
+  }
+  if (want === "hex" && result.status !== "absent") return "hex";
+  if (want === "parsed" && parsedBodyFor(entry, tab)) return "parsed";
+  return "source";
+}
+
+// The parsed body a tab shows instead of source text: only when Parsed is the shown view.
 function shownParsedBody(entry, tab) {
-  return getBodyParsed(tab) ? parsedBodyFor(entry, tab) : null;
+  return bodyViewFor(entry, tab) === "parsed" ? parsedBodyFor(entry, tab) : null;
 }

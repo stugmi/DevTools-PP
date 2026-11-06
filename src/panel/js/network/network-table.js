@@ -45,7 +45,7 @@ function requestSearchText(path, entry) {
   if (entry._searchText === undefined) {
     const { request, response } = entry._record;
     entry._searchText =
-      `${path}\n${request.method}\n${request.url}\n${response.status ?? ""}\n${requestKind(entry)}`.toLowerCase();
+      `${path}\n${request.method}\n${request.url}\n${response.status ?? ""}\n${requestStatusView(entry._record).text}\n${response.failure?.error ?? ""}\n${requestKind(entry)}`.toLowerCase();
   }
   return entry._searchText;
 }
@@ -200,14 +200,18 @@ function sortRequestEntries(entries) {
   return result;
 }
 
+// [path, entry] pairs in the order the table shows them (filters, then sort). Shared by
+// selection ranges and batch actions; callers must not mutate the result.
+function visibleRequestEntries() {
+  return sortRequestEntries(filteredRequestEntries());
+}
+
 // -- Rows --
 
-function statusClassFor(status) {
-  if (status === null) return "";
-  if (status >= 400) return "error";
-  if (status >= 300) return "redirect";
-  if (status >= 200) return "ok";
-  return "";
+// Status cell colors by requestStatusView kind; pending shows no color.
+function statusClassFor(kind) {
+  if (kind === "blocked" || kind === "failed" || kind === "error") return "error";
+  return kind === "redirect" || kind === "ok" ? kind : "";
 }
 
 function networkCell(className, text) {
@@ -224,6 +228,7 @@ function buildNetworkRow(path, entry) {
   row.className = "network-row network-row-grid";
   row.setAttribute("role", "row");
   row.tabIndex = -1;
+  row.setAttribute("aria-selected", "false");
   row.dataset.path = path;
   row.dataset.type = "request";
   row.dataset.section = "requests";
@@ -238,10 +243,16 @@ function buildNetworkRow(path, entry) {
   urlEl.textContent = requestRowUrlPath(entry);
   nameCell.append(methodEl, urlEl);
 
-  const status = finiteOrNull(record.response.status);
-  const statusCell = networkCell("network-cell-status", status === null ? "—" : String(status));
-  const statusClass = statusClassFor(status);
+  const view = requestStatusView(record);
+  const statusCell = networkCell("network-cell-status", view.text);
+  const statusClass = statusClassFor(view.kind);
   if (statusClass) statusCell.classList.add(statusClass);
+  if (view.failed) {
+    // Failed or blocked: the whole row is red; the reason is a tooltip and the cell's name.
+    row.classList.add("failed");
+    statusCell.title = view.title;
+    statusCell.setAttribute("aria-label", `${view.text}: ${view.title}`);
+  }
 
   const kind = requestKind(entry);
   const typeCell = networkCell("network-cell-type", kind);
@@ -268,11 +279,18 @@ let networkRows = new Map();
 let networkRowsTree = null;
 let networkEmptyState = null;
 let networkRovingRow = null;
+// Rows currently painted as selected, so a repaint only touches what changed.
+let networkMarkedRows = new Set();
 let renderedSortMark = "";
 // Scroll-to-selection triggers: the view of the list (filters + sort) and its visibility.
 // The capture sequence is left out so new requests never move the user's scroll position.
 let renderedViewKey = "";
 let networkWasVisible = false;
+
+// Rows are selectable and several can be selected at once.
+const networkTableElement = el.networkTableBody.closest("#network-table");
+networkTableElement?.setAttribute("role", "grid");
+networkTableElement?.setAttribute("aria-multiselectable", "true");
 
 function networkRowFor(path, entry) {
   const cached = networkRows.get(path);
@@ -288,25 +306,36 @@ function setNetworkRovingRow(row) {
   if (row) row.tabIndex = 0;
 }
 
-// Marks the selected row (class + aria-current) and keeps one row in the tab order.
+// Paints the selected rows (class + aria-selected) from state.requestSelection and keeps one
+// row in the tab order: the focused request, else the previous roving row, else the first
+// selected row, else the first row. Returns the row to scroll to (the focused row when it is
+// selected, otherwise the first selected visible row), or null.
 function syncNetworkRowSelection() {
   const body = el.networkTableBody;
-  const selected = state.listSelection.network
-    ? networkRows.get(state.listSelection.network)?.row
-    : null;
-  const active = selected?.isConnected ? selected : null;
-  for (const row of body.querySelectorAll(".network-row.selected")) {
-    if (row === active) continue;
+  const wanted = new Set();
+  for (const path of state.requestSelection.paths) {
+    const row = networkRows.get(path)?.row;
+    if (row?.isConnected) wanted.add(row);
+  }
+  for (const row of networkMarkedRows) {
+    if (wanted.has(row)) continue;
     row.classList.remove("selected");
-    row.removeAttribute("aria-current");
+    row.setAttribute("aria-selected", "false");
   }
-  if (active) {
-    active.classList.add("selected");
-    active.setAttribute("aria-current", "true");
+  for (const row of wanted) {
+    if (networkMarkedRows.has(row)) continue;
+    row.classList.add("selected");
+    row.setAttribute("aria-selected", "true");
   }
+  networkMarkedRows = wanted;
+
+  const focusedPath = state.listSelection.network;
+  const focusedRow = focusedPath ? networkRows.get(focusedPath)?.row : null;
+  const focused = focusedRow?.isConnected ? focusedRow : null;
   const roving = networkRovingRow?.isConnected ? networkRovingRow : null;
-  setNetworkRovingRow(active || roving || body.querySelector(".network-row"));
-  return active;
+  const firstSelected = wanted.values().next().value || null;
+  setNetworkRovingRow(focused || roving || firstSelected || body.querySelector(".network-row"));
+  return focused && wanted.has(focused) ? focused : firstSelected;
 }
 
 function networkViewKey() {
@@ -361,6 +390,8 @@ function reconcileNetworkRows(entries) {
 }
 
 function renderNetworkTable() {
+  // Hidden paths stay selected, but removed requests (capture reset) must not linger.
+  RequestSelection.prune();
   // The table is brought up to date by switchWorkspace when it becomes visible.
   if (state.workspace !== "network") {
     networkWasVisible = false;
@@ -386,10 +417,11 @@ function renderNetworkTable() {
 
   if (networkRowsTree !== state.requestTree) {
     networkRows = new Map();
+    networkMarkedRows = new Set();
     networkRowsTree = state.requestTree;
   }
 
-  const entries = sortRequestEntries(filteredRequestEntries());
+  const entries = visibleRequestEntries();
   el.networkCount.textContent = String(entries.length);
   el.networkExport.disabled = entries.length === 0;
 
@@ -417,14 +449,42 @@ function networkRowOf(event) {
   return row && el.networkTableBody.contains(row) ? row : null;
 }
 
+// Ctrl-click on Windows/Linux, Cmd-click on macOS (where Ctrl-click opens the context menu).
+function togglesSelection(event) {
+  return IS_MAC ? event.metaKey : event.ctrlKey;
+}
+
+// Selects only `path`, repaints and shows its detail. Used by click, Enter and the arrow keys.
+function openRequestRow(path) {
+  RequestSelection.selectOnly(path);
+  syncNetworkRowSelection();
+  openFile(path, "requests");
+}
+
+// Shift-click would otherwise start a text selection across the rows.
+el.networkTableBody.addEventListener("mousedown", (event) => {
+  if (event.shiftKey && networkRowOf(event)) event.preventDefault();
+});
+
 el.networkTableBody.addEventListener("click", (event) => {
   const row = networkRowOf(event);
-  if (row) openFile(row.dataset.path, "requests");
+  if (!row) return;
+  const path = row.dataset.path;
+  const toggles = togglesSelection(event);
+  if (!event.shiftKey && !toggles) {
+    openRequestRow(path);
+    return;
+  }
+  // Modifier clicks change the selection only; the detail view keeps its document.
+  if (event.shiftKey) RequestSelection.selectRange(path, visibleRequestEntries(), toggles);
+  else RequestSelection.toggle(path);
+  syncNetworkRowSelection();
+  row.focus({ preventScroll: true });
 });
 
 el.networkTableBody.addEventListener("dblclick", (event) => {
   const row = networkRowOf(event);
-  if (!row) return;
+  if (!row || event.shiftKey || togglesSelection(event)) return;
   const path = row.dataset.path;
   // The first click of the double click already opened it.
   if (state.selectedSection !== "requests" || state.selectedPath !== path) {
@@ -438,8 +498,21 @@ el.networkTableBody.addEventListener("contextmenu", (event) => {
   if (!row) return;
   event.preventDefault();
   const path = row.dataset.path;
-  state.contextTarget = { type: "file", path, section: "requests" };
-  openFile(path, "requests");
+  // Right-clicking inside the selection keeps it; elsewhere it selects that row alone.
+  if (RequestSelection.isSelected(path)) {
+    RequestSelection.focus(path);
+    syncNetworkRowSelection();
+  } else {
+    openRequestRow(path);
+  }
+  // The batch is fixed now, before the menu's async actions run. Hidden selections are left
+  // out; the selection itself is not touched by the actions.
+  state.contextTarget = {
+    type: "file",
+    path,
+    section: "requests",
+    requests: RequestSelection.targetsFor(path, visibleRequestEntries()),
+  };
   showContextMenu(event.clientX, event.clientY, "file");
 });
 
@@ -447,7 +520,7 @@ el.networkTableBody.addEventListener("keydown", (event) => {
   const row = networkRowOf(event);
   if (row && event.target === row && Keybinds.matches(event, "item.activate")) {
     event.preventDefault();
-    openFile(row.dataset.path, "requests");
+    openRequestRow(row.dataset.path);
   }
 });
 

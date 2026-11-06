@@ -87,6 +87,7 @@ function dismissTopLayer(event) {
   if (document.body.classList.contains("dragging-view")) return false; // layout drag owns Esc
   if (monacoWidgetOpen(target)) return false;
   if (menuOpen()) {
+    if (closeContextSubmenu()) return true;
     hideContextMenu();
     window.PanelLayout.closeViewMenu();
     return true;
@@ -105,14 +106,13 @@ function dismissTopLayer(event) {
 
 // -- Request list --
 
-// Selects the request above/below the current one in the order the list shows.
-// Stops at either end like DevTools instead of wrapping.
+// Selects only the request above/below the focused one in the order the list shows, and
+// opens it. Stops at either end like DevTools instead of wrapping.
 function selectAdjacentRequest(step) {
-  const entries = sortRequestEntries(filteredRequestEntries());
+  const entries = visibleRequestEntries();
   if (!entries.length) return;
-  const current = state.listSelection.network
-    ? entries.findIndex(([path]) => path === state.listSelection.network)
-    : -1;
+  const focused = RequestSelection.focusedPath();
+  const current = focused ? entries.findIndex(([path]) => path === focused) : -1;
   const next =
     current === -1
       ? step > 0
@@ -121,7 +121,7 @@ function selectAdjacentRequest(step) {
       : Math.min(Math.max(current + step, 0), entries.length - 1);
   if (next !== current) {
     const path = entries[next][0];
-    openFile(path, "requests");
+    openRequestRow(path);
     networkRows.get(path)?.row.scrollIntoView({ block: "nearest" });
   }
 }

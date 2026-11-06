@@ -1,6 +1,7 @@
 // DevTools resource access: getResources/getHAR/getContent wrappers with timeouts, plus
-// source map loading and mapped-file path normalization. No debugger attach.
-// Loaded after state.js (uses insp, network, state) and before the other capture files.
+// source map loading, retained mappings and mapped-file path normalization. No debugger attach.
+// Loaded after state.js (uses insp, network, state) and lib/source-map.js (SourceMapLookup),
+// and before the other capture files.
 "use strict";
 
 // getContent() callbacks and fetch() calls can hang forever (evicted HAR body, streaming
@@ -250,22 +251,85 @@ function resolveSourceURL(raw, sourceRoot, base) {
   }
 }
 
+// Generated -> original mappings kept per script URL, so initiator frames can be resolved to
+// captured authored files long after the source map JSON was dropped. Only mappings strings
+// are kept. The registry belongs to the capture it was built for: resetCapture() replaces
+// state.sourceByCaptureKey, which discards the registry on next access.
+let scriptMapOwner = null;
+let scriptMaps = new Map();
+
+function scriptMapRegistry() {
+  if (scriptMapOwner !== state.sourceByCaptureKey) {
+    scriptMapOwner = state.sourceByCaptureKey;
+    scriptMaps = new Map();
+  }
+  return scriptMaps;
+}
+
+// Maps a zero-based generated position in `scriptURL` to a captured authored file using only
+// retained mapping data. Returns `{status: "mapped", path, line, column}` (zero-based, path
+// in state.sourceTree) or a status explaining why not: "no-map" (no map retained for the
+// script), "unmapped" (the map has nothing for this position) or "source-missing" (mapped
+// to a source that was not captured). Never guesses from file names.
+function mapGeneratedPosition(scriptURL, line, column) {
+  const retained = scriptMapRegistry().get(scriptURL);
+  if (!retained) return { status: "no-map" };
+  const hit = SourceMapLookup.originalPosition(retained.sections, line, column);
+  if (!hit) return { status: "unmapped" };
+  const entry = hit.key ? state.sourceByCaptureKey.get(hit.key) : null;
+  if (!entry?._path || state.sourceTree[entry._path] !== entry) return { status: "source-missing" };
+  return { status: "mapped", path: entry._path, line: hit.line, column: hit.column };
+}
+
 // Adds a source map's files to state.sourceTree and returns how many are new. Index maps
-// (`sections`) are walked recursively with the outer map's URL.
+// (`sections`) are walked recursively with the outer map's URL. The mappings are retained for
+// mapGeneratedPosition (replacing an earlier scan of the same script).
 function addMapToTree(map, scriptURL, mapURL) {
+  const retained = { sections: [], valid: true };
+  const added = addMapSections(map, scriptURL, mapURL, retained, 0, 0);
+  const registry = scriptMapRegistry();
+  if (retained.valid && retained.sections.some((section) => section.keys.some(Boolean))) {
+    registry.set(scriptURL, { mapURL, sections: retained.sections });
+  } else {
+    registry.delete(scriptURL);
+  }
+  return added;
+}
+
+// `line`/`column` place this (sub)map in the generated file; `retained.sections` collects one
+// lookup section per leaf map, in file order.
+function addMapSections(map, scriptURL, mapURL, retained, line, column) {
   if (!map || typeof map !== "object") return 0;
   if (Array.isArray(map.sections)) {
     let added = 0;
-    for (const section of map.sections) added += addMapToTree(section?.map, scriptURL, mapURL);
+    for (const section of map.sections) {
+      const { line: offsetLine, column: offsetColumn } = section?.offset ?? {};
+      if (!Number.isSafeInteger(offsetLine) || !Number.isSafeInteger(offsetColumn)) {
+        retained.valid = false;
+      }
+      const start = retained.valid
+        ? SourceMapLookup.composeOffset(line, column, offsetLine, offsetColumn)
+        : { line, column };
+      if (!section?.map || typeof section.map !== "object") {
+        // Placeholder: positions in this section must not resolve through the previous one.
+        retained.sections.push(SourceMapLookup.createSection({ ...start }));
+      }
+      added += addMapSections(section?.map, scriptURL, mapURL, retained, start.line, start.column);
+    }
     return added;
   }
-  if (!Array.isArray(map.sources)) return 0;
+  if (!Array.isArray(map.sources)) {
+    retained.sections.push(SourceMapLookup.createSection({ line, column }));
+    return 0;
+  }
   const sourceRoot = typeof map.sourceRoot === "string" ? map.sourceRoot : "";
   // Inline data: maps have no usable base URL; their sources are relative to the script.
   const inline = mapURL.startsWith("data:");
   const base = inline ? scriptURL : mapURL;
   // Keys stay short for inline maps, whose URL can be megabytes long.
   const mapKey = inline ? "data:" : mapURL;
+  // Parallel to map.sources: the capture key of each retained source, null when skipped.
+  const keys = new Array(map.sources.length).fill(null);
   let added = 0;
   for (let i = 0; i < map.sources.length; i++) {
     const raw = map.sources[i];
@@ -278,6 +342,7 @@ function addMapToTree(map, scriptURL, mapURL) {
     // Without embedded content, fetchStatus stays null so the on-demand fetch runs.
     const fetchStatus = content != null ? "ok" : null;
     const captureKey = `${scriptURL}\0${mapKey}\0${raw}`;
+    keys[i] = captureKey;
     const existing = state.sourceByCaptureKey.get(captureKey);
     if (existing) {
       // Only reached when the script changed since its last scan. Keep user edits.
@@ -294,10 +359,15 @@ function addMapToTree(map, scriptURL, mapURL) {
       scriptURL,
       mapURL,
       fetchStatus,
+      // Where this entry lives in state.sourceTree (see mapGeneratedPosition).
+      _path: path,
     };
     state.sourceTree[path] = entry;
     state.sourceByCaptureKey.set(captureKey, entry);
     added++;
   }
+  retained.sections.push(
+    SourceMapLookup.createSection({ mappings: map.mappings, keys, line, column })
+  );
   return added;
 }

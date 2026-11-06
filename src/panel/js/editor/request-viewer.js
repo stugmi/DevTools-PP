@@ -22,12 +22,12 @@ window.RequestViewer = (() => {
   function mount(containerEl) {
     let editor = null;
     let monacoRef = null;
-    let pending = null; // { text, language }
+    let pending = null; // { text, language, resetScroll }
     let lastText = null; // text last put into the model, avoids reading it back
 
     function applyPending() {
       if (!pending || !editor) return;
-      const { text, language } = pending;
+      const { text, language, resetScroll } = pending;
       pending = null;
       const lang = language || "plaintext";
       const model = editor.getModel();
@@ -35,6 +35,7 @@ window.RequestViewer = (() => {
       if (lastText !== text) {
         model.setValue(text);
         lastText = text;
+        if (resetScroll) editor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
       }
     }
 
@@ -58,8 +59,9 @@ window.RequestViewer = (() => {
       return editor;
     });
 
-    function setContent(text, language) {
-      pending = { text: text == null ? "" : String(text), language };
+    // `resetScroll` scrolls to the top when the text changes (e.g. paging through a hex dump).
+    function setContent(text, language, { resetScroll = false } = {}) {
+      pending = { text: text == null ? "" : String(text), language, resetScroll };
       if (editor) applyPending();
     }
 
