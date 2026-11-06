@@ -29,6 +29,68 @@ window.SourceEditor = (() => {
     if (view) viewStates.set(current.id, view);
   }
 
+  // A navigation target (search hit, initiator frame, definition) is centered and briefly
+  // highlighted. Revealing needs the real viewport height, so when the editor is still hidden
+  // (e.g. the workspace is switching) the reveal waits for the first non-empty layout.
+  const JUMP_FLASH_MS = 1400;
+  let pendingReveal = null;
+  let jumpFlash = null;
+  let jumpFlashTimer = 0;
+
+  function cancelPendingReveal() {
+    pendingReveal?.dispose();
+    pendingReveal = null;
+  }
+
+  function clearJumpFlash() {
+    clearTimeout(jumpFlashTimer);
+    jumpFlash?.clear();
+    jumpFlash = null;
+  }
+
+  function revealCentered(monaco, range) {
+    cancelPendingReveal();
+    editor.layout();
+    if (editor.getLayoutInfo().height > 0) {
+      editor.revealRangeInCenter(range, monaco.editor.ScrollType.Immediate);
+      return;
+    }
+    pendingReveal = editor.onDidLayoutChange((layout) => {
+      if (layout.height <= 0) return;
+      cancelPendingReveal();
+      editor.revealRangeInCenter(range, monaco.editor.ScrollType.Immediate);
+    });
+  }
+
+  // Whole-line tint plus the target token (or the selected range), fading out via CSS.
+  function flashJumpTarget(monaco, model, selection) {
+    clearJumpFlash();
+    let target = selection;
+    if (selection.isEmpty()) {
+      const word = model.getWordAtPosition(selection.getStartPosition());
+      target = word
+        ? new monaco.Range(
+            selection.startLineNumber,
+            word.startColumn,
+            selection.startLineNumber,
+            word.endColumn
+          )
+        : null;
+    }
+    const line = selection.startLineNumber;
+    const decorations = [
+      {
+        range: new monaco.Range(line, 1, line, 1),
+        options: { isWholeLine: true, className: "se-jump-line" },
+      },
+    ];
+    if (target && !target.isEmpty()) {
+      decorations.push({ range: target, options: { inlineClassName: "se-jump-target" } });
+    }
+    jumpFlash = editor.createDecorationsCollection(decorations);
+    jumpFlashTimer = setTimeout(clearJumpFlash, JUMP_FLASH_MS);
+  }
+
   const EDIT_SYNC_MS = 150;
   const MAX_REFERENCE_LOCATIONS = 1000;
   const MAX_REFERENCE_DOCUMENTS = 200;
@@ -354,6 +416,8 @@ window.SourceEditor = (() => {
       suppressChanges = false;
     }
     pruneModels();
+    cancelPendingReveal();
+    clearJumpFlash();
     if (position) {
       const lineNumber = Math.max(1, Math.min(position.line, model.getLineCount()));
       const maxColumn = model.getLineMaxColumn(lineNumber);
@@ -364,7 +428,8 @@ window.SourceEditor = (() => {
       );
       const selection = new monaco.Selection(lineNumber, startColumn, lineNumber, endColumn);
       editor.setSelection(selection);
-      editor.revealRangeInCenter(selection);
+      revealCentered(monaco, selection);
+      flashJumpTarget(monaco, model, selection);
     } else {
       const view = viewStates.get(document.id);
       if (view) editor.restoreViewState(view);
@@ -377,6 +442,8 @@ window.SourceEditor = (() => {
     await ready;
     flushEdit();
     saveViewState();
+    cancelPendingReveal();
+    clearJumpFlash();
     current = null;
     editor.setModel(null);
   }

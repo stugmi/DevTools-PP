@@ -187,6 +187,35 @@
   height: 100%;
 }
 
+/* Navigation target flash: centered jump target fades out (see SourceEditor.flashJumpTarget). */
+#editor-container .se-jump-line {
+  animation: se-jump-fade 1.3s ease-out forwards;
+  background: color-mix(in srgb, var(--accent, #3794ff) 32%, transparent);
+}
+
+#editor-container .se-jump-target {
+  animation: se-jump-fade 1.3s ease-out forwards;
+  background: color-mix(in srgb, var(--accent, #3794ff) 55%, transparent);
+  border-radius: 2px;
+}
+
+@keyframes se-jump-fade {
+  0%,
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #editor-container .se-jump-line,
+  #editor-container .se-jump-target {
+    animation: none;
+  }
+}
+
 /* -- Placeholder -- */
 #preview-placeholder {
   display: flex;

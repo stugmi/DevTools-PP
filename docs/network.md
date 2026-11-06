@@ -38,6 +38,8 @@ Limits:
 
 The **Initiator** view shows the synchronous and async frames reported by DevTools. Selecting a frame opens its mapped original source in Source Exporter when a retained source map resolves, or the captured raw script at its generated position. If the file was not captured, the action can open native DevTools Sources instead; that fallback is labelled explicitly. Requests with no captured initiator show an unavailable message.
 
+Jumps to a frame, search result, or definition center the target line in the editor and briefly highlight it, so the location stays visible even with sticky scroll enabled.
+
 Frames from an earlier navigation or reset are marked unavailable rather than linked to a different version of the script.
 
 ## Detail views
