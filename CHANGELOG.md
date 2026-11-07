@@ -1,5 +1,62 @@
 # Changelog
 
+## 1.5.1
+
+### Bug Fixes
+
+- Fix malformed extension icons so PNG decoders can load them correctly.
+
+## 1.5.0
+
+### New Features
+
+- [Filter source files][source-filter] from the new **Filter** button in the Files toolbar: comma separated include and exclude rules (globs such as `*.js, src/**`, domains, folders, file types, `/regex/`), one-click shortcut chips, a switch that pauses the filter without clearing it, and a status bar summary. Rules are saved between sessions.
+- [Group the explorer][group-files] by domain, by file type, or not at all, and choose whether files nest in folders, from the filter popover or **Settings > Source Filter**.
+- Configure pretty-formatting in **Settings > [Code Formatting][code-formatting]**: brace and object style, array layout, indent size or tabs, blank-line limits, and line wrapping. The style applies to previews, request bodies, and formatted exports.
+- [Pause or resume watching][pause-watching] the page by clicking the status bar dot or from its right-click menu. Captured files stay; resuming catches up with the page.
+- [Copy as][copy-as] expands JSON request bodies into readable Python and fetch structures, including string values that hold JSON text at any depth (written as `stringify(...)` or `JSON.stringify(...)`). It works with non-JSON content types such as `text/plain`, keeps the captured Content-Type, and only expands values that re-serialize to the exact captured bytes.
+- Choose how Python writes embedded JSON in **Settings > Network > [Embedded JSON in Python][embedded-json]**: a `stringify(...)` helper function declared above the request (default), the same helper bound inline as `(stringify := lambda v: ...)`, or inline `json.dumps(...)` calls.
+
+### Changes
+
+- Pretty-formatting keeps short imports, objects, and blocks on one line in code that is already formatted, such as source-mapped files, instead of splitting each across lines. Minified code is still fully expanded; choose **Always expand** in [Braces and objects][braces] for the previous layout.
+- [Network filter bar][network-filters]: **Method** sits next to the text filter, and the domain filter is a **Domains** button with a searchable list, request counts, and a removable chip for the active domain. Requests also offer **Filter to this domain** in their right-click menu.
+- Python replays of JSON-in-text bodies need `json` imported, and the walrus helper option needs Python 3.8 or newer. Python sends the structure with `json=` only for JSON content types.
+- [Copy as][copy-as] keeps each header, and each string value inside JSON and form structures, on one line instead of splitting long values such as `User-Agent` or page URLs into concatenated pieces.
+- [Replay line width][line-width] defaults to 120 columns instead of 88 and has no upper limit; the minimum stays 40.
+- [Copy as][copy-as] PowerShell writes text bodies as readable UTF-8 text and JSON bodies as `[ordered]@{...}` structures sent through `ConvertTo-Json -Compress`, instead of base64. Bodies PowerShell 7 cannot reproduce exactly stay as exact text; binary bodies keep base64. The snippet now stops with an error in Windows PowerShell 5.1 instead of only noting the requirement in a comment.
+- [Copy as][copy-as] cURL (bash) sends text bodies inline as one readable `--data-raw` word (ANSI-C `$'...'` quoting only when the body has control characters) instead of a `printf` hex pipe, which remains for binary and very large bodies. Redundant `--request` and quoted option names are gone, and a capture without a Content-Type no longer gets curl's form-urlencoded default.
+- [Copy as][copy-as] Python replaces the separate Python requests and Python httpx entries; choose the package in **Settings > Network > [Python library][python-library]** (requests by default). A saved preference for one of the old entries carries over.
+- The location filter is replaced by the [source filter][source-filter], which applies to Authored and Deployed files and their exports, including Export All. The Network list keeps its own filters.
+- The status bar keeps showing the capture counts while background scans run instead of switching to "Scanning sources...". Errors and finished exports show for a few seconds, errors in red.
+- Requests without a host name, such as `data:` URLs, are listed under "(no domain)" and can be filtered by it.
+
+### Bug Fixes
+
+- The request body language dropdown no longer stays in the editor footer after switching from a request to a file.
+- [Smart TypeScript diagnostics][ts-diagnostics] also hide "Untyped function calls may not accept type arguments", which only appears because a package import could not be resolved.
+- When response bytes are unavailable, the hex view now points to choosing a text language to read the decoded text.
+- [Copy as][copy-as] Python no longer falls back to a raw string for JSON with long floats such as `0.8999999761581421` (a common `devicePixelRatio`); any float Python prints the same way now keeps the readable structure.
+
+### Developer Information
+
+- Keep release notes in a single root `CHANGELOG.md`; `scripts/changelog-notes.js` extracts one version's notes for GitHub releases.
+- Add `lib/code-format.js` (formatting style to js-beautify options), `lib/source-filter.js` (rule language and matcher), and `core/source-filter-state.js` (filter state and explorer grouping), with tests in `scripts/test-code-format.js` and `scripts/test-source-filter.js`.
+- Add a [Settings reference][settings] and screenshots to the README and guides under `docs/`.
+
+[source-filter]: https://github.com/stugmi/SourceExporter/blob/main/docs/usage.md#filter-and-group-files
+[group-files]: https://github.com/stugmi/SourceExporter/blob/main/docs/settings.md#group-files-by
+[code-formatting]: https://github.com/stugmi/SourceExporter/blob/main/docs/settings.md#code-formatting
+[braces]: https://github.com/stugmi/SourceExporter/blob/main/docs/settings.md#braces-and-objects
+[pause-watching]: https://github.com/stugmi/SourceExporter/blob/main/docs/usage.md#pause-watching
+[copy-as]: https://github.com/stugmi/SourceExporter/blob/main/docs/network.md#copy-as-code
+[embedded-json]: https://github.com/stugmi/SourceExporter/blob/main/docs/settings.md#embedded-json-in-python
+[python-library]: https://github.com/stugmi/SourceExporter/blob/main/docs/settings.md#python-library
+[network-filters]: https://github.com/stugmi/SourceExporter/blob/main/docs/network.md#filters
+[ts-diagnostics]: https://github.com/stugmi/SourceExporter/blob/main/docs/settings.md#typescript-diagnostics-for-authored-files
+[line-width]: https://github.com/stugmi/SourceExporter/blob/main/docs/settings.md#replay-line-width
+[settings]: https://github.com/stugmi/SourceExporter/blob/main/docs/settings.md
+
 ## 1.4.3
 
 ### New Features
