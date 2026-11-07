@@ -472,7 +472,7 @@ function snapshotInitiator(initiator) {
 // Returns true when a new request entry was added. `deferRebuild` leaves the UI refresh to
 // the caller (used when capturing in bulk or when rebuilds are debounced).
 function captureRequestSnapshot(entry, deferRebuild = false, requestKey = null) {
-  if (!state.panelVisible) return false;
+  if (!capturing()) return false;
   const request = entry?.request;
   const url = request?.url;
   if (!url || isBlacklistedResourceURL(url)) return false;

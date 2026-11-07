@@ -19,7 +19,21 @@ const PREF_KEYS = {
   archiveFormat: "se.archiveFormat",
   requestCopyFormat: "se.requestCopyFormat",
   requestCodeLineWidth: "se.requestCodeLineWidth",
+  requestCodePythonLibrary: "se.requestCodePythonLibrary",
+  requestCodePythonNestedJson: "se.requestCodePythonNestedJson",
   tsDiagnostics: "se.tsDiagnostics",
+  codeIndentSize: "se.codeIndentSize",
+  codeIndentTabs: "se.codeIndentTabs",
+  codeBraceStyle: "se.codeBraceStyle",
+  codeKeepArrayLayout: "se.codeKeepArrayLayout",
+  codePreserveBlankLines: "se.codePreserveBlankLines",
+  codeMaxBlankLines: "se.codeMaxBlankLines",
+  codeWrapLineLength: "se.codeWrapLineLength",
+  sourceFilterEnabled: "se.sourceFilterEnabled",
+  sourceFilterInclude: "se.sourceFilterInclude",
+  sourceFilterExclude: "se.sourceFilterExclude",
+  sourceGroupBy: "se.sourceGroupBy",
+  sourceNestFolders: "se.sourceNestFolders",
 };
 
 // Theme key and default are repeated in core/theme-boot.js (se.editorTheme, vs-dark); keep in sync.
@@ -38,6 +52,27 @@ function readPref(key, fallback = null) {
   }
 }
 
+// Copy as used to offer "python-requests" and "python-httpx"; a stored one becomes the single
+// Python format, and its package becomes the Python library unless one was chosen since.
+const LEGACY_PYTHON_FORMATS = { "python-requests": "requests", "python-httpx": "httpx" };
+
+function copyFormatPref() {
+  const stored = readPref("requestCopyFormat");
+  if (Object.hasOwn(LEGACY_PYTHON_FORMATS, stored ?? "")) return "python";
+  return RequestCode.FORMATS.some(({ value }) => value === stored)
+    ? stored
+    : RequestCode.DEFAULT_FORMAT;
+}
+
+function pythonLibraryPref() {
+  const stored = readPref("requestCodePythonLibrary");
+  if (RequestCode.PYTHON_LIBRARIES.some(({ value }) => value === stored)) return stored;
+  const legacy = readPref("requestCopyFormat");
+  return Object.hasOwn(LEGACY_PYTHON_FORMATS, legacy ?? "")
+    ? LEGACY_PYTHON_FORMATS[legacy]
+    : RequestCode.DEFAULT_PYTHON_LIBRARY;
+}
+
 const prefs = {
   prettyDefault: readPref("prettyDefault") === "1",
   prettyOnExport: readPref("prettyOnExport") === "1",
@@ -50,15 +85,47 @@ const prefs = {
   // Pretty-print request/response bodies in the Network detail view. On unless turned off.
   formatBodies: readPref("formatBodies") !== "0",
   archiveFormat: readPref("archiveFormat") === "tar" ? "tar" : "zip",
-  requestCopyFormat: RequestCode.FORMATS.some(
-    ({ value }) => value === readPref("requestCopyFormat")
-  )
-    ? readPref("requestCopyFormat")
-    : RequestCode.DEFAULT_FORMAT,
+  requestCopyFormat: copyFormatPref(),
+  requestCodePythonLibrary: pythonLibraryPref(),
   requestCodeLineWidth: RequestCode.normalizeLineWidth(readPref("requestCodeLineWidth")),
+  // How Python replays write JSON text nested in JSON bodies (RequestCode.PYTHON_NESTED_JSON).
+  requestCodePythonNestedJson: RequestCode.PYTHON_NESTED_JSON.some(
+    ({ value }) => value === readPref("requestCodePythonNestedJson")
+  )
+    ? readPref("requestCodePythonNestedJson")
+    : RequestCode.DEFAULT_PYTHON_NESTED_JSON,
   // How strictly TypeScript checks authored files: "smart" | "syntax" | "off".
   tsDiagnostics: ["smart", "syntax", "off"].find((v) => v === readPref("tsDiagnostics")) ?? "smart",
+  // Code formatting style (see lib/code-format.js); read by `codeFormatStyle()`.
+  codeIndentSize: readPref("codeIndentSize"),
+  codeIndentTabs: readPref("codeIndentTabs") === "1",
+  codeBraceStyle: readPref("codeBraceStyle"),
+  codeKeepArrayLayout: readPref("codeKeepArrayLayout") === "1",
+  codePreserveBlankLines: readPref("codePreserveBlankLines") !== "0",
+  codeMaxBlankLines: readPref("codeMaxBlankLines"),
+  codeWrapLineLength: readPref("codeWrapLineLength"),
+  // Source filter (see lib/source-filter.js) and how files are grouped in the explorer.
+  sourceFilterEnabled: readPref("sourceFilterEnabled") !== "0",
+  sourceFilterInclude: readPref("sourceFilterInclude") ?? "",
+  sourceFilterExclude: readPref("sourceFilterExclude") ?? "",
+  sourceGroupBy:
+    ["auto", "domain", "type", "none"].find((v) => v === readPref("sourceGroupBy")) ?? "auto",
+  sourceNestFolders: readPref("sourceNestFolders") !== "0",
 };
+
+// The stored code formatting prefs as a CodeFormat style.
+function codeFormatStyle() {
+  return CodeFormat.normalize({
+    indentSize: prefs.codeIndentSize,
+    indentTabs: prefs.codeIndentTabs,
+    braceStyle: prefs.codeBraceStyle,
+    keepArrayLayout: prefs.codeKeepArrayLayout,
+    preserveBlankLines: prefs.codePreserveBlankLines,
+    maxBlankLines: prefs.codeMaxBlankLines,
+    wrapLineLength: prefs.codeWrapLineLength,
+  });
+}
+CodeFormat.configure(codeFormatStyle());
 
 function savePref(key, value) {
   if (!Object.hasOwn(PREF_KEYS, key)) return;
@@ -111,6 +178,8 @@ const state = {
   ...createCaptureState(),
   // Set by the PANEL_SHOWN / PANEL_HIDDEN messages from the DevTools page (capture.js).
   panelVisible: false,
+  // Session-only: the user paused watching from the status bar. Capture resumes on unpause.
+  capturePaused: false,
   scanning: false,
   // Bumped on reset and navigation. In-flight scans stop writing once it changes, and raw
   // entries from an older generation get their content refreshed.
@@ -135,14 +204,12 @@ const state = {
   requestDetailFormat: prefs.formatBodies,
   // Format used by the Cookies tab Copy / Save buttons.
   cookieFormat: "json",
-  locationFilter: {
-    mode: "all",
-    value: "",
-    regex: null,
-    error: "",
-    // normalizeDomain(value), computed once in setLocationFilter.
-    domain: "",
-  },
+  // Compiled from the sourceFilter* prefs; see core/source-filter-state.js.
+  sourceFilter: SourceFilter.createFilter({
+    enabled: prefs.sourceFilterEnabled,
+    include: prefs.sourceFilterInclude,
+    exclude: prefs.sourceFilterExclude,
+  }),
   selectedPath: null,
   selectedSection: null,
   // Per-list focus, independent of the preview document above.
@@ -203,7 +270,14 @@ const el = {
   networkTableHeader: $("network-table-header"),
   networkTableBody: $("network-table-body"),
   requestFilterClear: $("request-filter-clear"),
-  requestDomainFilter: $("request-domain-filter"),
+  requestDomainButton: $("request-domain-button"),
+  requestDomainLabel: $("request-domain-label"),
+  requestDomainChip: $("request-domain-chip"),
+  requestDomainChipName: $("request-domain-chip-name"),
+  requestDomainChipClear: $("request-domain-chip-clear"),
+  requestDomainPopover: $("request-domain-popover"),
+  requestDomainSearch: $("request-domain-search"),
+  requestDomainList: $("request-domain-list"),
   requestTypeFilters: $("request-type-filters"),
   requestMethodFilter: $("request-method-filter"),
   requestTimeMin: $("request-time-min"),
@@ -244,9 +318,39 @@ const el = {
   quickPickerResults: $("quick-picker-results"),
 };
 
-function setStatus(kind, text) {
-  el.statusIndicator.className = `indicator ${kind}`;
+// Status bar text has two layers. The resting text is the watching mode and the counts
+// (updateCaptureStatus in capture.js). A notice, such as an error or a finished export,
+// replaces it for a few seconds; count updates wait until the notice expires. The indicator
+// dot is owned by the watching state (updateCaptureIndicator), not by messages.
+const STATUS_NOTICE_MS = 6000;
+let statusNoticeTimer = null;
+
+function setStatus(text, { error = false } = {}) {
   el.statusText.textContent = text;
+  el.statusText.classList.toggle("error", error);
+  clearTimeout(statusNoticeTimer);
+  statusNoticeTimer = setTimeout(() => {
+    statusNoticeTimer = null;
+    updateCaptureStatus();
+  }, STATUS_NOTICE_MS);
+}
+
+function setRestingStatus(text) {
+  if (statusNoticeTimer) return;
+  el.statusText.textContent = text;
+  el.statusText.classList.remove("error");
+}
+
+// Drops a showing notice so the next resting update is visible at once.
+function clearStatusNotice() {
+  clearTimeout(statusNoticeTimer);
+  statusNoticeTimer = null;
+}
+
+// True while new resources, requests and navigations are captured: the panel is visible and
+// the user has not paused watching.
+function capturing() {
+  return state.panelVisible && !state.capturePaused;
 }
 
 function treeFor(section) {
@@ -259,10 +363,6 @@ function modelFor(section) {
   if (section === "raw") return state.rawTreeModel;
   if (section === "requests") return state.requestTreeModel;
   return state.treeModel;
-}
-
-function entryLocation(entry) {
-  return [entry?.scriptURL, entry?.sourceURL].filter(Boolean).join("\n");
 }
 
 function entryHost(entry) {
@@ -283,79 +383,6 @@ const NO_DOMAIN = "(no domain)";
 // The site a captured file belongs to: where its script was served from.
 function domainOf(entry) {
   return entryHost(entry) || NO_DOMAIN;
-}
-
-function normalizeDomain(value) {
-  const candidate = value.trim().toLowerCase();
-  if (!candidate) return "";
-  try {
-    const url = new URL(candidate.includes("://") ? candidate : `https://${candidate}`);
-    return url.hostname.toLowerCase().replace(/^\.+|\.+$/g, "");
-  } catch {
-    return candidate
-      .replace(/^[a-z][a-z\d+.-]*:\/\//, "")
-      .split("/")[0]
-      .replace(/^\.+|\.+$/g, "");
-  }
-}
-
-function locationFilterMatches(entry) {
-  const { mode, value, regex, domain } = state.locationFilter;
-  if (mode === "all" || !value.trim()) return true;
-
-  if (mode === "regex") return Boolean(regex && regex.test(entryLocation(entry)));
-
-  const host = entryHost(entry);
-  if (!domain || !host) return false;
-  if (mode === "subdomains") return host === domain || host.endsWith(`.${domain}`);
-  return host === domain;
-}
-
-function filteredTreeFor(section) {
-  const tree = treeFor(section);
-  if (state.locationFilter.mode === "all" || !state.locationFilter.value.trim()) return tree;
-  const out = Object.create(null);
-  for (const path in tree) {
-    if (locationFilterMatches(tree[path])) out[path] = tree[path];
-  }
-  return out;
-}
-
-function locationFilterActive() {
-  return state.locationFilter.mode !== "all" && Boolean(state.locationFilter.value.trim());
-}
-
-// Human-readable status for the location filter; shown in Settings and (when a
-// filter is active) as a chip in the status bar.
-function locationFilterStatusText() {
-  if (state.locationFilter.error) return state.locationFilter.error;
-  return locationFilterActive() ? "Location filter active" : "All locations shown";
-}
-
-function updateLocationFilterUI() {
-  const active = locationFilterActive() || Boolean(state.locationFilter.error);
-  el.statusFilter.hidden = !active;
-  el.statusFilter.classList.toggle("error", Boolean(state.locationFilter.error));
-  el.statusFilter.textContent = state.locationFilter.error
-    ? "Location filter: invalid regex"
-    : `Location filter: ${state.locationFilter.value.trim()}`;
-}
-
-function setLocationFilter(mode, value) {
-  state.locationFilter.mode = mode;
-  state.locationFilter.value = value;
-  state.locationFilter.domain = normalizeDomain(value);
-  state.locationFilter.regex = null;
-  state.locationFilter.error = "";
-  if (mode === "regex" && value.trim()) {
-    try {
-      state.locationFilter.regex = new RegExp(value, "i");
-    } catch (error) {
-      state.locationFilter.error = `Invalid regex: ${error.message}`;
-    }
-  }
-  updateLocationFilterUI();
-  rebuild();
 }
 
 const ALL_SECTIONS = ["mapped", "raw", "requests"];

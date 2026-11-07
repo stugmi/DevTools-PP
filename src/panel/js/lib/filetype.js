@@ -156,13 +156,6 @@ function badgeForPath(path, lang) {
   return ext ? ext.toUpperCase() : "TXT";
 }
 
-const BEAUTIFY_OPTS = {
-  indent_size: 2,
-  end_with_newline: true,
-  preserve_newlines: true,
-  max_preserve_newlines: 2,
-};
-
 function getBeautifier() {
   if (window.beautifier) return window.beautifier;
   if (window.js_beautify || window.css_beautify || window.html_beautify) {
@@ -185,7 +178,7 @@ function canPrettyFormat(lang) {
 
 // Re-indents JSON text without a JSON.parse/stringify round trip, so big integers (ids,
 // timestamps) and key order survive byte-for-byte. Throws if `text` isn't valid JSON.
-function formatJsonText(text, indent = "  ") {
+function formatJsonText(text, indent = CodeFormat.indentUnit()) {
   JSON.parse(text);
   const length = text.length;
   const whitespace = /\s/;
@@ -235,19 +228,20 @@ function prettyFormat(content, lang) {
   }
   const b = getBeautifier();
   if (!b) throw new Error("beautifier unavailable");
+  const options = CodeFormat.beautifyOptions(content);
   if (lang === "javascript" || lang === "typescript") {
-    return b.js(content, BEAUTIFY_OPTS);
+    return b.js(content, options);
   }
   if (lang === "css" || lang === "scss") {
-    return b.css(content, BEAUTIFY_OPTS);
+    return b.css(content, options);
   }
   if (lang === "html") {
-    return b.html(content, BEAUTIFY_OPTS);
+    return b.html(content, options);
   }
   if (lang === "xml") {
     // XML has no inline elements. Without this, tags named like HTML inline ones (<source>,
     // <b>, <span>) get glued onto one line.
-    return b.html(content, { ...BEAUTIFY_OPTS, inline: [] });
+    return b.html(content, { ...options, inline: [] });
   }
   throw new Error("no formatter for " + lang);
 }

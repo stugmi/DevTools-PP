@@ -71,14 +71,10 @@ async function processScripts(scripts, resourceMap, gen, live) {
 // Never rejects. Stops writing as soon as the panel hides or the scan generation changes
 // (reset, navigation), so a stale scan cannot fill the new page's state.
 async function scanAll() {
-  if (!state.panelVisible || state.scanning) return;
+  if (!capturing() || state.scanning) return;
   const gen = state.scanGeneration;
-  const live = () => gen === state.scanGeneration && state.panelVisible;
+  const live = () => gen === state.scanGeneration && capturing();
   state.scanning = true;
-  setStatus(
-    "connecting",
-    state.collectAcrossNavigations ? "Collecting sources and requests…" : "Scanning sources…"
-  );
   try {
     const [pageId, har] = await Promise.all([getInspectedPageId(), getHAR()]);
     if (!live()) return;
@@ -95,7 +91,7 @@ async function scanAll() {
     await processScripts(scripts, resourceMap, gen, live);
     if (live()) rebuild();
   } catch (error) {
-    if (live()) setStatus("inactive", `Scan failed: ${error.message}`);
+    if (live()) setStatus(`Scan failed: ${error.message}`, { error: true });
   } finally {
     if (gen === state.scanGeneration) state.scanning = false;
   }
@@ -113,34 +109,35 @@ function updateCaptureStatus() {
     Object.keys(state.rawTree).length +
     Object.keys(state.requestTree).length;
 
+  // The label only reflects the watching mode; routine scans update the counts in place.
+  const mode = state.capturePaused
+    ? "Paused"
+    : state.collectAcrossNavigations
+      ? "Collecting across navigations"
+      : "Watching";
   if (totalCapturedCount === 0) {
-    setStatus(
-      "active",
-      `${state.collectAcrossNavigations ? "Collecting" : "Watching"} — nothing to show`
-    );
+    setRestingStatus(`${mode} — nothing to show`);
     el.btnExportAll.disabled = true;
   } else {
     const parts = [];
     if (state.showMapped) parts.push(`${counts.mapped} mapped`);
     if (state.showRaw) parts.push(`${counts.raw} raw`);
     parts.push(`${counts.requests} requests`);
-    setStatus(
-      "active",
-      `${state.collectAcrossNavigations ? "Collecting across navigations" : "Watching"} — ${parts.join(", ")}`
-    );
+    setRestingStatus(`${mode} — ${parts.join(", ")}`);
     el.btnExportAll.disabled = false;
   }
   return counts;
 }
 
 function rebuild() {
-  // Authored files are grouped under the domain of the script they were mapped from
-  // (entryHost prefers scriptURL over the map or source URL).
-  state.treeModel = buildTreeModel(filteredTreeFor("mapped"), { groupByDomain: true });
-  state.rawTreeModel = buildTreeModel(filteredTreeFor("raw"));
-  state.requestTreeModel = buildTreeModel(filteredTreeFor("requests"));
+  // Authored files group under the domain of the script they were mapped from (entryHost
+  // prefers scriptURL over the map or source URL) unless the grouping setting says otherwise.
+  state.treeModel = buildTreeModel(filteredTreeFor("mapped"), { section: "mapped" });
+  state.rawTreeModel = buildTreeModel(filteredTreeFor("raw"), { section: "raw" });
+  state.requestTreeModel = buildTreeModel(filteredTreeFor("requests"), { section: "requests" });
 
   renderTree(updateCaptureStatus());
+  updateSourceFilterUI();
   renderNetworkTable();
   SourceEditor.scheduleProjectSync();
 }
@@ -203,7 +200,7 @@ function scheduleScriptScan(delay = 1000) {
   clearTimeout(scriptScanTimer);
   scriptScanTimer = setTimeout(() => {
     scriptScanTimer = null;
-    if (!state.panelVisible) return;
+    if (!capturing()) return;
     if (state.scanning) {
       scheduleScriptScan(250);
       return;
@@ -213,19 +210,19 @@ function scheduleScriptScan(delay = 1000) {
 }
 
 insp.onResourceAdded.addListener((resource) => {
-  if (!resource || !state.panelVisible) return;
+  if (!resource || !capturing()) return;
   if (addRawResource(resource)) scheduleRebuild();
   if (resource.type === "script") scheduleScriptScan();
 });
 
 network.onNavigated.addListener(() => {
-  if (!state.panelVisible) return;
+  if (!capturing()) return;
   handlePageChange();
   scheduleScriptScan();
 });
 
 network.onRequestFinished.addListener((request) => {
-  if (!state.panelVisible) return;
+  if (!capturing()) return;
   const url = request.request && request.request.url;
   const contentType = contentTypeFromHAR(request);
   if (!url || isBlacklistedResourceURL(url)) return;
@@ -233,7 +230,7 @@ network.onRequestFinished.addListener((request) => {
   try {
     if (captureRequestSnapshot(request, true)) scheduleRebuild();
   } catch (error) {
-    setStatus("inactive", `Request capture failed: ${error.message}`);
+    setStatus(`Request capture failed: ${error.message}`, { error: true });
   }
 });
 
@@ -245,12 +242,56 @@ network.onRequestFinished.addListener((request) => {
 // hidden, so a page that reloaded or navigated meanwhile is detected here instead.
 async function onPanelShown() {
   const pageId = await getInspectedPageId();
-  if (!state.panelVisible) return;
+  if (!capturing()) return;
   if (pageId != null && state.scanPageId != null && pageId !== state.scanPageId) {
     handlePageChange();
   }
   scheduleScriptScan(500);
 }
+
+// -- Pausing --
+// The status bar dot shows whether the panel is watching. Pausing ignores new resources,
+// requests and navigations; resuming catches up like returning to the panel does.
+
+function updateCaptureIndicator() {
+  const paused = state.capturePaused;
+  el.statusIndicator.classList.toggle("active", !paused);
+  el.statusIndicator.classList.toggle("paused", paused);
+  el.statusIndicator.setAttribute("aria-pressed", String(paused));
+  el.statusIndicator.setAttribute("aria-label", paused ? "Resume watching" : "Pause watching");
+  el.statusIndicator.title = paused
+    ? "Paused: new sources and requests are ignored. Click to resume."
+    : "Watching for new sources and requests. Click to pause.";
+}
+
+function setCapturePaused(paused) {
+  if (state.capturePaused === paused) return;
+  state.capturePaused = paused;
+  if (paused) {
+    // An in-flight scan stops writing on its own: its live() check reads capturing().
+    clearTimeout(scriptScanTimer);
+    scriptScanTimer = null;
+  } else {
+    onPanelShown();
+  }
+  updateCaptureIndicator();
+  clearStatusNotice();
+  updateCaptureStatus();
+}
+
+el.statusIndicator.addEventListener("click", () => setCapturePaused(!state.capturePaused));
+el.statusIndicator.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  state.contextTarget = { type: "capture" };
+  const rect = el.statusIndicator.getBoundingClientRect();
+  const fromKeyboard = event.button !== 2;
+  showContextMenu(
+    fromKeyboard ? rect.left : event.clientX,
+    fromKeyboard ? rect.top : event.clientY,
+    "capture"
+  );
+});
 
 window.addEventListener("message", (event) => {
   // Only this extension's DevTools page may toggle capture.

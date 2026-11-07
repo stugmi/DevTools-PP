@@ -16,7 +16,9 @@ function finiteOrNull(value) {
 function requestHost(entry) {
   if (entry._reqHost === undefined) {
     try {
-      entry._reqHost = new URL(entry?._record?.request?.url || entry?.sourceURL || "").hostname;
+      // data: and about: URLs parse but have an empty host; "" would mean "all domains".
+      entry._reqHost =
+        new URL(entry?._record?.request?.url || entry?.sourceURL || "").hostname || "(no domain)";
     } catch {
       entry._reqHost = "(no domain)";
     }
@@ -72,15 +74,14 @@ function requestMatchesFilters(path, entry) {
   ) {
     return false;
   }
-  return locationFilterMatches(entry);
+  return true;
 }
 
 // The filtered list is recomputed only when the captured set or a filter changed.
-let requestListCache = { tree: null, regex: null, key: "", entries: [] };
+let requestListCache = { tree: null, key: "", entries: [] };
 
 function requestListKey() {
   const f = state.requestFilters;
-  const loc = state.locationFilter;
   return [
     state.requestCaptureSequence,
     f.domain,
@@ -89,8 +90,6 @@ function requestListKey() {
     f.minDuration,
     f.maxDuration,
     state.filterText,
-    loc.mode,
-    loc.value,
   ].join("\u0001");
 }
 
@@ -98,21 +97,17 @@ function requestListKey() {
 function filteredRequestEntries() {
   const key = requestListKey();
   const cache = requestListCache;
-  if (
-    cache.tree === state.requestTree &&
-    cache.regex === state.locationFilter.regex &&
-    cache.key === key
-  ) {
+  if (cache.tree === state.requestTree && cache.key === key) {
     return cache.entries;
   }
   const entries = Object.entries(state.requestTree)
     .filter(([path, entry]) => requestMatchesFilters(path, entry))
     .sort(([, a], [, b]) => b._captureSequence - a._captureSequence);
-  requestListCache = { tree: state.requestTree, regex: state.locationFilter.regex, key, entries };
+  requestListCache = { tree: state.requestTree, key, entries };
   return entries;
 }
 
-// -- Filter dropdown options --
+// -- Filter options --
 
 let filterOptionsSource = { tree: null, sequence: -1 };
 let filterOptionsKey = "";
@@ -125,7 +120,18 @@ function setFilterOptions(select, allLabel, values, current) {
   select.value = current;
 }
 
-// Rebuilds the domain and method options only when a host or method appeared or vanished.
+// Domains are not a <select>: the Domains popover (domain-filter.js) reads requestDomainOptions().
+let requestDomainCounts = new Map();
+
+// [{ host, count }] sorted by host, over every captured request regardless of the filters.
+function requestDomainOptions() {
+  return [...requestDomainCounts.keys()]
+    .sort()
+    .map((host) => ({ host, count: requestDomainCounts.get(host) }));
+}
+
+// Recounts hosts whenever the capture changes; rebuilds the method options only when a
+// method appeared or vanished.
 function syncRequestFilterOptions() {
   if (
     filterOptionsSource.tree === state.requestTree &&
@@ -135,20 +141,20 @@ function syncRequestFilterOptions() {
   }
   filterOptionsSource = { tree: state.requestTree, sequence: state.requestCaptureSequence };
 
-  const hosts = new Set();
+  const hosts = new Map();
   const methods = new Set();
   for (const entry of Object.values(state.requestTree)) {
-    hosts.add(requestHost(entry));
+    const host = requestHost(entry);
+    hosts.set(host, (hosts.get(host) ?? 0) + 1);
     const method = entry._record?.request?.method?.toUpperCase();
     if (method) methods.add(method);
   }
-  const domains = [...hosts].sort();
+  requestDomainCounts = hosts;
   const methodList = [...methods].sort();
-  const key = `${domains.join("\u0001")}\u0002${methodList.join("\u0001")}`;
+  const key = methodList.join("\u0001");
   if (key === filterOptionsKey) return;
   filterOptionsKey = key;
 
-  setFilterOptions(el.requestDomainFilter, "All domains", domains, state.requestFilters.domain);
   setFilterOptions(el.requestMethodFilter, "All methods", methodList, state.requestFilters.method);
 }
 
@@ -340,7 +346,6 @@ function syncNetworkRowSelection() {
 
 function networkViewKey() {
   const f = state.requestFilters;
-  const loc = state.locationFilter;
   const sort = state.requestSort;
   return [
     f.domain,
@@ -349,8 +354,6 @@ function networkViewKey() {
     f.minDuration,
     f.maxDuration,
     state.filterText,
-    loc.mode,
-    loc.value,
     sort.key,
     sort.dir,
   ].join("\u0001");

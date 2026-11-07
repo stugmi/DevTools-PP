@@ -358,6 +358,12 @@
   display: none;
 }
 
+/* They belong to the request view only; a file opened afterwards must not show them. */
+#preview-footer:not(.request-actions) .footer-request-btn,
+#preview-footer:not(.request-actions) .footer-request-select {
+  display: none;
+}
+
 .footer-request-select {
   height: 20px;
   max-width: 140px;

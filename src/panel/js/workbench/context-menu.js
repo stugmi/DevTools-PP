@@ -18,12 +18,30 @@ function requestCountLabel(count) {
 }
 
 async function copyRequestCode(entries, format) {
-  const code = RequestCode.serialize(format, entries, { lineWidth: prefs.requestCodeLineWidth });
+  const code = RequestCode.serialize(format, entries, {
+    lineWidth: prefs.requestCodeLineWidth,
+    pythonLibrary: prefs.requestCodePythonLibrary,
+    pythonNestedJson: prefs.requestCodePythonNestedJson,
+  });
   if (!(await copyTextToClipboard(code))) throw new Error("Copy failed: clipboard unavailable");
 }
 
+// "Python (requests)": the Python entry names the package chosen in Settings.
+function copyFormatLabel({ value, label }) {
+  return value === "python" ? `${label} (${prefs.requestCodePythonLibrary})` : label;
+}
+
 function contextMenuActions(target) {
-  const { type, path, section, domain } = target;
+  const { type, path, section, group } = target;
+  if (type === "capture") {
+    return [
+      {
+        id: "ctx-toggle-capture",
+        label: state.capturePaused ? "Resume watching" : "Pause watching",
+        run: () => setCapturePaused(!state.capturePaused),
+      },
+    ];
+  }
   const actions = [];
   const request = section === "requests" && type === "file";
   // Captured now so later selection changes cannot alter what the async actions work on.
@@ -43,6 +61,11 @@ function contextMenuActions(target) {
       id: "ctx-show-initiator",
       label: "Show initiator",
       run: () => RequestInitiator.show(path),
+    });
+    actions.push({
+      id: "ctx-filter-domain",
+      label: "Filter to this domain",
+      run: () => window.DomainFilterPanel.setDomain(requestHost(state.requestTree[path])),
     });
   }
   if (type === "file") {
@@ -65,8 +88,8 @@ function contextMenuActions(target) {
       label: "Export directory",
       run: () =>
         exportItems(
-          getItemsUnderDir(section, path, domain),
-          path.split("/").pop() || domain || getDomainLabel()
+          getItemsUnderDir(section, path, group),
+          path.split("/").pop() || (group ? groupLabelFor(section, group) : "") || getDomainLabel()
         ),
     });
   } else if (type === "section") {
@@ -90,7 +113,7 @@ function contextMenuActions(target) {
             section,
             type === "dir" ? path : "",
             open,
-            type === "dir" ? domain : undefined
+            type === "dir" ? group : undefined
           ),
       });
     }
@@ -100,7 +123,7 @@ function contextMenuActions(target) {
       id: "ctx-copy-path",
       label: request ? "Copy address" : type === "dir" ? "Copy folder path" : "Copy file path",
       async run() {
-        const text = url || path || domain;
+        const text = url || path || (group ? groupLabelFor(section, group) : "");
         if (text && !(await copyTextToClipboard(text)))
           throw new Error("Copy failed: clipboard unavailable");
       },
@@ -114,16 +137,16 @@ function contextMenuActions(target) {
       id: "ctx-copy-preferred",
       label:
         (batch.length === 1 ? "Copy as " : `Copy ${requestCountLabel(batch.length)} as `) +
-        preferred.label,
+        copyFormatLabel(preferred),
       run: () => copyRequestCode(batchEntries, preferred.value),
     });
     actions.push({
       id: "ctx-copy-as",
       label: "Copy as",
-      children: RequestCode.FORMATS.map(({ value, label }) => ({
-        id: "ctx-copy-" + value,
-        label,
-        run: () => copyRequestCode(batchEntries, value),
+      children: RequestCode.FORMATS.map((format) => ({
+        id: "ctx-copy-" + format.value,
+        label: copyFormatLabel(format),
+        run: () => copyRequestCode(batchEntries, format.value),
       })),
     });
   }
@@ -220,7 +243,7 @@ function contextActionElement(action) {
       hideContextMenu();
       Promise.resolve()
         .then(action.run)
-        .catch((error) => setStatus("inactive", error.message));
+        .catch((error) => setStatus(error.message, { error: true }));
     });
   }
   return item;
@@ -257,7 +280,11 @@ function showContextMenu(x, y, targetType) {
   );
   el.contextMenu.setAttribute(
     "aria-label",
-    target.section === "requests" ? "Request actions" : "File actions"
+    targetType === "capture"
+      ? "Capture actions"
+      : target.section === "requests"
+        ? "Request actions"
+        : "File actions"
   );
   el.contextMenu.style.display = "block";
   positionContextMenu(el.contextMenu, x, y);

@@ -241,7 +241,7 @@ function renderContent(content, lang, badgeFallback, position, virtual = false) 
         language: lang || "plaintext",
       };
   SourceEditor.show(editorDoc, position).catch((error) => {
-    setStatus("inactive", `Editor failed: ${error.message}`);
+    setStatus(`Editor failed: ${error.message}`, { error: true });
   });
 
   const lines = display.split("\n").length;

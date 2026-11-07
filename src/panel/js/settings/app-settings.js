@@ -1,6 +1,6 @@
 "use strict";
 
-// App settings definitions (theme, preview, network, export, location filter).
+// App settings definitions (theme, preview, network, export, source filter).
 // Rendered by the Settings panel in editor-settings.js; each definition owns its get/set.
 // Loaded after capture/export code it calls and before layout.js.
 window.AppSettings = (() => {
@@ -36,6 +36,13 @@ window.AppSettings = (() => {
     else if (state.selectedPath && state.lastPreviewOriginal) {
       renderContent(state.lastPreviewOriginal, state.lastPreviewLang, state.lastPreviewBadge);
     }
+  }
+
+  // Stores one code formatting pref, applies the new style and redraws what the preview shows.
+  function setCodeFormat(key, value) {
+    setPref(key, value);
+    CodeFormat.configure(codeFormatStyle());
+    rerenderPreview();
   }
 
   const DEFINITIONS = [
@@ -129,6 +136,84 @@ window.AppSettings = (() => {
       },
     },
     {
+      id: "codeBraceStyle",
+      section: "Code Formatting",
+      label: "Braces and objects",
+      description:
+        "Applies to pretty-formatted JS/TS and the scripts inside HTML. Smart leaves short imports, objects and blocks on one line when the file is already formatted, and expands minified code.",
+      type: "select",
+      options: CodeFormat.BRACE_STYLES,
+      default: CodeFormat.DEFAULTS.braceStyle,
+      get: () => codeFormatStyle().braceStyle,
+      set: (value) => setCodeFormat("codeBraceStyle", value),
+    },
+    {
+      id: "codeKeepArrayLayout",
+      section: "Code Formatting",
+      label: "Keep array layout",
+      description: "Leave arrays exactly as written instead of re-breaking their lines.",
+      type: "boolean",
+      default: CodeFormat.DEFAULTS.keepArrayLayout,
+      get: () => codeFormatStyle().keepArrayLayout,
+      set: (value) => setCodeFormat("codeKeepArrayLayout", Boolean(value)),
+    },
+    {
+      id: "codeIndentTabs",
+      section: "Code Formatting",
+      label: "Indent with tabs",
+      description: "Use tab characters instead of spaces.",
+      type: "boolean",
+      default: CodeFormat.DEFAULTS.indentTabs,
+      get: () => codeFormatStyle().indentTabs,
+      set: (value) => setCodeFormat("codeIndentTabs", Boolean(value)),
+    },
+    {
+      id: "codeIndentSize",
+      section: "Code Formatting",
+      label: "Indent size",
+      description: "Spaces per indent level (1-8). Also the JSON indent.",
+      type: "number",
+      min: CodeFormat.LIMITS.indentSize.min,
+      max: CodeFormat.LIMITS.indentSize.max,
+      default: CodeFormat.DEFAULTS.indentSize,
+      get: () => codeFormatStyle().indentSize,
+      set: (value) => setCodeFormat("codeIndentSize", value),
+    },
+    {
+      id: "codePreserveBlankLines",
+      section: "Code Formatting",
+      label: "Keep blank lines",
+      description: "Keep the blank lines between statements, up to the limit below.",
+      type: "boolean",
+      default: CodeFormat.DEFAULTS.preserveBlankLines,
+      get: () => codeFormatStyle().preserveBlankLines,
+      set: (value) => setCodeFormat("codePreserveBlankLines", Boolean(value)),
+    },
+    {
+      id: "codeMaxBlankLines",
+      section: "Code Formatting",
+      label: "Max consecutive blank lines",
+      description: "Longer runs of blank lines are shortened to this many (0-5).",
+      type: "number",
+      min: CodeFormat.LIMITS.maxBlankLines.min,
+      max: CodeFormat.LIMITS.maxBlankLines.max,
+      default: CodeFormat.DEFAULTS.maxBlankLines,
+      get: () => codeFormatStyle().maxBlankLines,
+      set: (value) => setCodeFormat("codeMaxBlankLines", value),
+    },
+    {
+      id: "codeWrapLineLength",
+      section: "Code Formatting",
+      label: "Wrap long lines at",
+      description: "Column to wrap code at (0 turns wrapping off).",
+      type: "number",
+      min: CodeFormat.LIMITS.wrapLineLength.min,
+      max: CodeFormat.LIMITS.wrapLineLength.max,
+      default: CodeFormat.DEFAULTS.wrapLineLength,
+      get: () => codeFormatStyle().wrapLineLength,
+      set: (value) => setCodeFormat("codeWrapLineLength", value),
+    },
+    {
       id: "formatBodies",
       section: "Network",
       label: "Format request & response bodies by default",
@@ -160,18 +245,49 @@ window.AppSettings = (() => {
       },
     },
     {
+      id: "requestCodePythonLibrary",
+      section: "Network",
+      label: "Python library",
+      description:
+        "The package Copy as Python writes for: requests (default) or httpx. httpx can also replay duplicate headers and URL spellings that requests would rewrite.",
+      type: "select",
+      options: RequestCode.PYTHON_LIBRARIES,
+      default: RequestCode.DEFAULT_PYTHON_LIBRARY,
+      get: () => prefs.requestCodePythonLibrary,
+      set(value) {
+        if (RequestCode.PYTHON_LIBRARIES.some((option) => option.value === value)) {
+          setPref("requestCodePythonLibrary", value);
+        }
+      },
+    },
+    {
       id: "requestCodeLineWidth",
       section: "Network",
       label: "Replay line width",
       description:
-        "Preferred width for copied request code (40-160 columns). Shell transport commands may exceed it.",
+        "Preferred width for copied request code, at least 40 columns with no upper limit. Header values and string values inside JSON or form structures stay on one line, and shell transport commands may exceed it.",
       type: "number",
       min: 40,
-      max: 160,
       default: RequestCode.DEFAULT_LINE_WIDTH,
       get: () => prefs.requestCodeLineWidth,
       set(value) {
         setPref("requestCodeLineWidth", RequestCode.normalizeLineWidth(value));
+      },
+    },
+    {
+      id: "requestCodePythonNestedJson",
+      section: "Network",
+      label: "Embedded JSON in Python",
+      description:
+        "How Python replays write string values that hold JSON text, such as analytics fields: through a stringify(...) helper function declared above the request (default), the same helper bound inline with a walrus (Python 3.8+), or an inline json.dumps(...) per value.",
+      type: "select",
+      options: RequestCode.PYTHON_NESTED_JSON,
+      default: RequestCode.DEFAULT_PYTHON_NESTED_JSON,
+      get: () => prefs.requestCodePythonNestedJson,
+      set(value) {
+        if (RequestCode.PYTHON_NESTED_JSON.some((option) => option.value === value)) {
+          setPref("requestCodePythonNestedJson", value);
+        }
       },
     },
     {
@@ -203,33 +319,61 @@ window.AppSettings = (() => {
       },
     },
     {
-      id: "locationFilterMode",
-      section: "Location Filter",
-      label: "Match",
+      id: "sourceFilterEnabled",
+      section: "Source Filter",
+      label: "Apply the source filter",
       description:
-        "Only show (and export) files whose script or source URL matches. Not saved between sessions.",
-      type: "select",
-      options: [
-        { value: "all", label: "All locations" },
-        { value: "exact", label: "Exact domain" },
-        { value: "subdomains", label: "Domain + subdomains" },
-        { value: "regex", label: "URL/location regex" },
-      ],
-      default: "all",
-      get: () => state.locationFilter.mode,
-      set: (value) => setLocationFilter(value, state.locationFilter.value),
+        "Turn the include and exclude rules off without clearing them. Also in the Files toolbar filter button.",
+      type: "boolean",
+      default: true,
+      get: () => prefs.sourceFilterEnabled,
+      set: (value) => setSourceFilter({ enabled: Boolean(value) }),
     },
     {
-      id: "locationFilterValue",
-      section: "Location Filter",
-      label: "Domain or pattern",
-      description: "For example example.com, or github\\.com|cdn\\. in regex mode.",
+      id: "sourceFilterInclude",
+      section: "Source Filter",
+      label: "Include",
+      description: `Only show (and export) files matching one of these comma separated rules. ${SOURCE_FILTER_SYNTAX}`,
       type: "text",
       default: "",
-      get: () => state.locationFilter.value,
-      set: (value) => setLocationFilter(state.locationFilter.mode, String(value)),
-      status: () => locationFilterStatusText(),
-      statusIsError: () => Boolean(state.locationFilter.error),
+      get: () => prefs.sourceFilterInclude,
+      set: (value) => setSourceFilter({ include: String(value) }),
+      status: () => sourceFilterRuleStatus(state.sourceFilter.includeErrors),
+      statusIsError: () => state.sourceFilter.includeErrors.length > 0,
+    },
+    {
+      id: "sourceFilterExclude",
+      section: "Source Filter",
+      label: "Exclude",
+      description: "Hide files matching any of these rules, even when they match an include rule.",
+      type: "text",
+      default: "",
+      get: () => prefs.sourceFilterExclude,
+      set: (value) => setSourceFilter({ exclude: String(value) }),
+      status: () => sourceFilterRuleStatus(state.sourceFilter.excludeErrors),
+      statusIsError: () => state.sourceFilter.excludeErrors.length > 0,
+    },
+    {
+      id: "sourceGroupBy",
+      section: "Source Filter",
+      label: "Group files by",
+      description:
+        "How the explorer groups files. Automatic groups Authored files by domain and leaves Deployed files ungrouped.",
+      type: "select",
+      options: SOURCE_GROUP_OPTIONS,
+      default: "auto",
+      get: () => prefs.sourceGroupBy,
+      set: (value) => setSourceGrouping({ groupBy: value }),
+    },
+    {
+      id: "sourceNestFolders",
+      section: "Source Filter",
+      label: "Nest files in folders",
+      description: "Turn off to list each group's files by full path instead of as a folder tree.",
+      type: "boolean",
+      default: true,
+      get: () => prefs.sourceNestFolders,
+      set: (value) => setSourceGrouping({ nestFolders: Boolean(value) }),
     },
   ];
 

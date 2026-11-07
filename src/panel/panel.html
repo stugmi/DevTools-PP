@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="css/request-detail.css" />
     <link rel="stylesheet" href="css/hex-viewer.css" />
     <link rel="stylesheet" href="css/cookies.css" />
+    <link rel="stylesheet" href="css/source-filter.css" />
   </head>
 
   <body>
@@ -208,6 +209,26 @@
           </button>
         </div>
         <div id="files-filter-input-slot">
+          <button
+            id="btn-source-filter"
+            type="button"
+            class="source-filter-btn"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+            aria-controls="source-filter-popover"
+            title="Filter files by type, domain or folder"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M2 3h12l-4.5 5.5V13l-3-1.5V8.5L2 3z"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <span class="source-filter-label">Filter</span>
+            <span id="source-filter-badge" class="source-filter-badge" hidden></span>
+          </button>
           <input
             id="filter-input"
             type="search"
@@ -221,10 +242,10 @@
       <!-- Network workspace filter bar (row 2) -->
       <div id="request-filters">
         <div id="network-filter-input-slot"></div>
-        <label class="request-filter-field request-filter-domain">
-          <span>Domain</span>
-          <select id="request-domain-filter">
-            <option value="">All domains</option>
+        <label class="request-filter-field">
+          <span>Method</span>
+          <select id="request-method-filter">
+            <option value="">All methods</option>
           </select>
         </label>
         <div class="request-filter-field" role="group" aria-labelledby="request-type-label">
@@ -243,12 +264,6 @@
             <button type="button" data-request-type="other" aria-pressed="false">Other</button>
           </div>
         </div>
-        <label class="request-filter-field">
-          <span>Method</span>
-          <select id="request-method-filter">
-            <option value="">All methods</option>
-          </select>
-        </label>
         <div class="request-filter-field" role="group" aria-labelledby="request-time-label">
           <span id="request-time-label">Duration (ms)</span>
           <div class="request-time-inputs">
@@ -271,6 +286,33 @@
             />
           </div>
         </div>
+        <button
+          id="request-domain-button"
+          type="button"
+          class="request-domain-button"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          aria-controls="request-domain-popover"
+          title="Filter by domain"
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" />
+            <ellipse cx="8" cy="8" rx="2.6" ry="6" stroke="currentColor" />
+            <path d="M2 8h12" stroke="currentColor" />
+          </svg>
+          <span id="request-domain-label">Domains</span>
+        </button>
+        <span id="request-domain-chip" class="request-domain-chip" hidden>
+          <span id="request-domain-chip-name" class="request-domain-chip-name"></span>
+          <button
+            id="request-domain-chip-clear"
+            type="button"
+            aria-label="Remove domain filter"
+            title="Remove domain filter"
+          >
+            &times;
+          </button>
+        </span>
         <button id="request-filter-clear" type="button">Clear</button>
       </div>
 
@@ -912,13 +954,20 @@
 
       <!-- Status bar -->
       <div id="statusbar">
-        <span id="status-indicator" class="indicator inactive" aria-hidden="true"></span>
-        <span id="status-text" role="status" aria-live="polite">Not connected</span>
+        <button
+          id="status-indicator"
+          type="button"
+          class="indicator active"
+          aria-pressed="false"
+          aria-label="Pause watching"
+          title="Watching for new sources and requests. Click to pause."
+        ></button>
+        <span id="status-text" role="status" aria-live="polite">Watching</span>
         <button
           id="status-filter"
           type="button"
           class="status-chip"
-          title="Location filter is hiding some files — click to change"
+          title="Source filter is hiding some files — click to change"
           hidden
         ></button>
       </div>
@@ -926,6 +975,107 @@
       <!-- Context menu -->
       <div id="context-menu" style="display: none" role="menu" aria-label="File actions"></div>
       <div id="view-menu" style="display: none" role="menu" aria-label="View options"></div>
+      <!-- Network domain filter popover: opened by the Domains button in the request filter bar -->
+      <div
+        id="request-domain-popover"
+        class="request-domain-popover"
+        role="dialog"
+        aria-label="Filter by domain"
+        hidden
+      >
+        <input
+          id="request-domain-search"
+          type="search"
+          placeholder="Search domains..."
+          aria-label="Search domains"
+          aria-controls="request-domain-list"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div
+          id="request-domain-list"
+          class="request-domain-list"
+          role="listbox"
+          aria-label="Domains"
+        ></div>
+      </div>
+
+      <!-- Source filter popover: opened by the Files toolbar button and the status bar chip -->
+      <div id="source-filter-popover" role="dialog" aria-labelledby="sf-title" hidden>
+        <div class="sf-head">
+          <h2 id="sf-title" class="sf-title">Source filter</h2>
+          <label class="sf-switch" title="Turn the filter on or off without clearing your rules">
+            <input id="sf-enabled" type="checkbox" role="switch" />
+            <span class="sf-switch-track" aria-hidden="true"></span>
+            <span id="sf-enabled-label" class="sf-switch-label">On</span>
+          </label>
+        </div>
+        <div class="sf-body">
+          <div class="sf-field">
+            <label for="sf-include" class="sf-label">
+              Include <span class="sf-hint">only files matching</span>
+            </label>
+            <input
+              id="sf-include"
+              type="text"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="*.js, src/**, github.com"
+            />
+            <div
+              id="sf-include-chips"
+              class="sf-chips"
+              role="group"
+              aria-label="Include shortcuts"
+            ></div>
+            <div id="sf-include-error" class="sf-error" hidden></div>
+          </div>
+          <div class="sf-field">
+            <label for="sf-exclude" class="sf-label">
+              Exclude <span class="sf-hint">hide files matching</span>
+            </label>
+            <input
+              id="sf-exclude"
+              type="text"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="node_modules, *.map, .min.js"
+            />
+            <div
+              id="sf-exclude-chips"
+              class="sf-chips"
+              role="group"
+              aria-label="Exclude shortcuts"
+            ></div>
+            <div id="sf-exclude-error" class="sf-error" hidden></div>
+          </div>
+          <div id="sf-summary" class="sf-summary" role="status" aria-live="polite"></div>
+          <div class="sf-row">
+            <label for="sf-group-by" class="sf-label">Group by</label>
+            <select id="sf-group-by"></select>
+            <label class="sf-check"><input id="sf-nest" type="checkbox" /> Nest in folders</label>
+          </div>
+          <details class="sf-help">
+            <summary>Rule syntax</summary>
+            <ul>
+              <li><code>*.js, *.html</code> file names; separate rules with commas</li>
+              <li><code>src/**</code> folder globs (<code>**</code> crosses folders)</li>
+              <li><code>github.com</code>, <code>react</code> text in the path or URL</li>
+              <li><code>.min.js</code> file name ending</li>
+              <li><code>domain:cdn.example.com</code> a host and its subdomains</li>
+              <li>
+                <code>ext:css</code>, <code>type:image|font</code>, <code>path:components</code>,
+                <code>file:Ago</code>
+              </li>
+              <li><code>/regex/i</code> regular expression on the path and URLs</li>
+            </ul>
+          </details>
+        </div>
+        <div class="sf-foot">
+          <button id="sf-clear" type="button" class="sf-link">Clear rules</button>
+          <button id="sf-settings" type="button" class="sf-link">All settings</button>
+        </div>
+      </div>
 
       <div
         id="quick-picker"
@@ -1051,12 +1201,15 @@
     <script src="../vendor/monaco/vs/loader.js"></script>
     <script src="js/core/keybinds.js"></script>
     <script src="js/lib/request-code.js"></script>
+    <script src="js/lib/code-format.js"></script>
+    <script src="js/lib/source-filter.js"></script>
     <script src="js/lib/hexdump.js"></script>
     <script src="js/lib/hex-inspector.js"></script>
     <script src="js/editor/monaco-loader.js"></script>
     <script src="js/editor/editor.js"></script>
     <script src="js/settings/editor-settings.js"></script>
     <script src="js/core/state.js"></script>
+    <script src="js/core/source-filter-state.js"></script>
     <script src="js/core/request-selection.js"></script>
     <script src="js/lib/filetype.js"></script>
     <script src="js/lib/json-payload.js"></script>
@@ -1069,6 +1222,7 @@
     <script src="js/editor/request-viewer.js"></script>
     <script src="js/network/cookies.js"></script>
     <script src="js/network/network-table.js"></script>
+    <script src="js/network/domain-filter.js"></script>
     <script src="js/network/request-body.js"></script>
     <script src="js/network/hex-viewer.js"></script>
     <script src="js/network/body-trees.js"></script>
@@ -1081,6 +1235,7 @@
     <script src="js/settings/app-settings.js"></script>
     <script src="js/workbench/layout.js"></script>
     <script src="js/workbench/keyboard.js"></script>
+    <script src="js/workbench/source-filter-panel.js"></script>
     <script src="js/main.js"></script>
   </body>
 </html>

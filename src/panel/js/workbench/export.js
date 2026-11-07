@@ -113,7 +113,7 @@ async function exportItems(items, archiveName) {
     }
 
     if (files.length === 0) {
-      setStatus("inactive", "No exportable files.");
+      setStatus("No exportable files.", { error: true });
       return;
     }
 
@@ -137,10 +137,10 @@ async function exportItems(items, archiveName) {
       if (prettyFailed > 0) notes.push(`${prettyFailed} fell back to original`);
     }
     if (notes.length) {
-      setStatus("active", "Exported — " + notes.join(", "));
+      setStatus("Exported — " + notes.join(", "));
     }
   } catch (error) {
-    setStatus("inactive", `Export failed: ${error.message}`);
+    setStatus(`Export failed: ${error.message}`, { error: true });
   } finally {
     exporting = false;
     hideProgress();
@@ -321,7 +321,7 @@ function getItemsInSection(section) {
     .filter((path) =>
       section === "requests"
         ? requestMatchesFilters(path, tree[path])
-        : locationFilterMatches(tree[path])
+        : sourceFilterMatches(section, path, tree[path])
     )
     .map((path) => ({ path, section }));
 }
@@ -329,7 +329,7 @@ function getItemsInSection(section) {
 function getAllItemsInSection(section) {
   const tree = treeFor(section);
   return Object.keys(tree)
-    .filter((path) => locationFilterMatches(tree[path]))
+    .filter((path) => sourceFilterMatches(section, path, tree[path]))
     .map((path) => ({ path, section }));
 }
 
@@ -338,14 +338,14 @@ function archiveNameForSection(section) {
   return `${getDomainLabel()}-${suffix}`;
 }
 
-function getItemsUnderDir(section, dirPath, domain) {
+function getItemsUnderDir(section, dirPath, group) {
   const tree = treeFor(section);
   return Object.keys(tree)
     .filter((p) => {
       const entry = tree[p];
       if (dirPath && p !== dirPath && !p.startsWith(dirPath + "/")) return false;
-      if (domain && domainOf(entry) !== domain) return false;
-      return locationFilterMatches(entry);
+      if (group && groupOf(section, p, entry) !== group) return false;
+      return sourceFilterMatches(section, p, entry);
     })
     .map((path) => ({ path, section }));
 }

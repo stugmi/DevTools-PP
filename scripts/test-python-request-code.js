@@ -19,10 +19,15 @@ const source = fs.readFileSync(
 const libContext = vm.createContext({ TextEncoder, TextDecoder, btoa, atob, URLSearchParams });
 const RequestCode = vm.runInContext(`${source}\nRequestCode`, libContext);
 
+// Copy as has one Python format; the pythonLibrary option picks the package.
 const LIBS = [
-  { format: "python-requests", module: "requests" },
-  { format: "python-httpx", module: "httpx" },
+  { name: "python (requests)", module: "requests" },
+  { name: "python (httpx)", module: "httpx" },
 ];
+
+function serializeFor(lib, entries, options = {}) {
+  return RequestCode.serialize("python", entries, { ...options, pythonLibrary: lib.module });
+}
 
 // -- Fixtures --
 
@@ -124,6 +129,98 @@ const INVALID_UTF8 = Buffer.from([0x78, 0x9c, 0x00, 0xff, 0xfe, 0x80, 0x00, 0x01
 const ALL_BYTES_LONG = Buffer.alloc(256 * 20 + 3);
 for (let i = 0; i < ALL_BYTES_LONG.length; i++) ALL_BYTES_LONG[i] = i & 0xff;
 const GZIPPED = zlib.gzipSync(Buffer.from(JSON_NONCANONICAL.repeat(30)));
+
+// JSON bodies sent with a non-JSON Content-Type (as GitHub's collector does). `payload` marks the
+// ones json.dumps reproduces exactly; the rest must keep the raw-text replay. `walrus` marks the
+// ones whose JSON-text string values go through the stringify(...) helper.
+const COLLECTOR_JSON = JSON.stringify({
+  client_id: "1234567890.1730000000",
+  events: [
+    {
+      entries: JSON.stringify([
+        { name: "index-JVHuKBxQ.css", cached: false, duration: 51.1, size: 18342 },
+        { name: "caf\u00e9-\ud83d\ude00.js", cached: true, initiator: null, sizes: [] },
+      ]),
+      context: JSON.stringify({ react: true, meta: JSON.stringify({ depth: 2, ids: [1] }) }),
+      spaced: '{"a": 1}',
+      escaped: '["caf\\u00e9"]',
+      scalars: ["false", "5651832", "null", '"q"', "[]x", "{}"],
+      // Python spellings differ from JavaScript: 1e-7 is rejected everywhere (Python writes
+      // 1e-07); 1.0 and integers beyond 2^53 are exact in Python only.
+      numbers: ["[1e-7]", "[1.0]", "[12345678901234567890]"],
+      quote: 'it\'s "q" \\ \n\t',
+      timestamp: 1730000000123,
+      dimensions: { visible: true, scroll: 0.75, tags: ["a", "b"], nothing: null, nested: [] },
+    },
+  ],
+  request_context: { referrer: "", browser_width: 1568, empty: {} },
+});
+const JSON_TEXT_CASES = [
+  {
+    name: "collector JSON as text/plain",
+    text: COLLECTOR_JSON,
+    payload: true,
+    walrus: true,
+  },
+  {
+    name: "JSON as text/plain, nested JSON with default outer spacing",
+    text: '{"a": "[1,{\\"b\\":2}]", "c": "[1, 2]"}',
+    payload: true,
+  },
+  {
+    name: "JSON as text/plain, literal non-ASCII",
+    text: '{"q":"caf\u00e9 \ud83d\ude00"}',
+    payload: true,
+  },
+  {
+    name: "JSON as text/plain, ASCII escapes",
+    text: '{"q": "caf\\u00e9", "n": [1, 2]}',
+    payload: true,
+  },
+  { name: "JSON array as text/plain", text: '[{"a":1},"b",-2.5,false]', payload: true },
+  {
+    // Browsers send shortest round-trip floats such as devicePixelRatio 0.8999999761581421.
+    name: "JSON as text/plain, 16-17 digit floats",
+    text: '{"pixel_ratio":0.8999999761581421,"x":0.30000000000000004,"t":1794083135698.5,"w":1.0}',
+    payload: true,
+  },
+  {
+    name: "JSON as text/plain, float with a non-shortest spelling",
+    text: '{"a":0.10000000000000000555}',
+    payload: false,
+  },
+  { name: "JSON as text/plain, float with a trailing zero", text: '{"a":1.50}', payload: false },
+  { name: "JSON as text/plain, float below 1e-4", text: '{"a":0.00001}', payload: false },
+  {
+    name: "JSON as text/plain, Python-only big int",
+    text: '{"n":12345678901234567890}',
+    payload: true,
+  },
+  { name: "JSON as text/plain, irregular spaces", text: '{"a": 1,"b":2}', payload: false },
+  {
+    name: "JSON as text/plain, mixed escapes",
+    text: '{"a":"\u00e9","b":"\\u00e9"}',
+    payload: false,
+  },
+  { name: "JSON as text/plain, escaped slash", text: '{"a":"\\/"}', payload: false },
+  { name: "JSON as text/plain, duplicate keys", text: '{"a":1,"a":2}', payload: false },
+  { name: "JSON as text/plain, exponent", text: '{"a":1E+2}', payload: false },
+  {
+    name: "JSON as text/plain, 70-digit int",
+    text: '{"a":' + "9".repeat(70) + "}",
+    payload: false,
+  },
+  { name: "JSON as text/plain, trailing newline", text: '{"a":1}\n', payload: false },
+].map((c) => ({ ...c, bytes: Buffer.from(c.text), mime: "text/plain;charset=UTF-8" }));
+// JSON-typed bodies with nested JSON text: json=payload for the library whose spacing matches.
+JSON_TEXT_CASES.push(
+  ...['{"a":"[1,{\\"b\\":2}]"}', '{"a": "[1,{\\"b\\":2}]"}'].map((text) => ({
+    name: "nested JSON text in application/json: " + text,
+    text,
+    bytes: Buffer.from(text),
+    mime: "application/json",
+  }))
+);
 
 const BODY_CASES = [
   {
@@ -297,6 +394,7 @@ const BODY_CASES = [
     explicitBytes: true,
     lossyText: "a\ufffd\ufffd\u0000\ufffdb",
   },
+  ...JSON_TEXT_CASES,
 ].map((c, index) => ({ ...c, index, path: "/body/" + index }));
 
 // -- Pure helpers --
@@ -305,8 +403,27 @@ function codeLines(code) {
   return code.split("\n");
 }
 
+// A Python literal that can't be split: one string or number, alone or as the value of a
+// "key": pair, as a list or dict item.
+const WHOLE_STRING_ITEM =
+  /^\s*(?:(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'): )?(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|-?\d+(?:\.\d+)?),?$/;
+
+// Widest line, ignoring the entries of a `headers=` block and lines that are one whole string
+// item: header and item string values are never split, so a long User-Agent or URL value may
+// exceed the width on purpose.
 function maxWidth(code) {
-  return Math.max(...codeLines(code).map((line) => [...line].length));
+  const lines = [];
+  let headerIndent = null;
+  for (const line of codeLines(code)) {
+    const indent = line.length - line.trimStart().length;
+    if (headerIndent !== null) {
+      if (indent === headerIndent && /^[\]}]/.test(line.trimStart())) headerIndent = null;
+      continue;
+    }
+    if (/^\s*headers=[[{]$/.test(line)) headerIndent = indent;
+    if (!WHOLE_STRING_ITEM.test(line)) lines.push(line);
+  }
+  return Math.max(...lines.map((line) => [...line].length));
 }
 
 function importedModules(code) {
@@ -363,8 +480,8 @@ function widthEntries(base) {
 // -- Regression tests --
 
 for (const lib of LIBS) {
-  test(`${lib.format}: generated code has no import statements and no print`, () => {
-    const code = RequestCode.serialize(lib.format, [
+  test(`${lib.name}: generated code has no import statements and no print`, () => {
+    const code = serializeFor(lib, [
       bodyEntry(
         BODY_CASES.find((c) => c.mode === "base64" && c.bytes === INVALID_UTF8),
         "http://h.test"
@@ -377,23 +494,23 @@ for (const lib of LIBS) {
     assert.ok(code.startsWith("response = "), "output starts with the request assignment");
   });
 
-  test(`${lib.format}: default width is 88 for long URLs and bodies`, () => {
-    const code = RequestCode.serialize(lib.format, widthEntries("http://127.0.0.1:1"));
-    assert.ok(maxWidth(code) <= 88, "widest line is " + maxWidth(code));
+  test(`${lib.name}: default width is 120 for long URLs and bodies`, () => {
+    const code = serializeFor(lib, widthEntries("http://127.0.0.1:1"));
+    assert.ok(maxWidth(code) <= 120, "widest line is " + maxWidth(code));
   });
 
-  test(`${lib.format}: lineWidth option bounds wrapping and changes the layout`, () => {
+  test(`${lib.name}: lineWidth option bounds wrapping and changes the layout`, () => {
     const entries = widthEntries("http://127.0.0.1:1");
-    const narrow = RequestCode.serialize(lib.format, entries, { lineWidth: 72 });
-    const wide = RequestCode.serialize(lib.format, entries, { lineWidth: 120 });
+    const narrow = serializeFor(lib, entries, { lineWidth: 72 });
+    const wide = serializeFor(lib, entries, { lineWidth: 160 });
     assert.ok(maxWidth(narrow) <= 72, "narrow max " + maxWidth(narrow));
-    assert.ok(maxWidth(wide) <= 120, "wide max " + maxWidth(wide));
+    assert.ok(maxWidth(wide) <= 160, "wide max " + maxWidth(wide));
     assert.ok(codeLines(wide).length < codeLines(narrow).length, "wider output needs fewer lines");
-    const standard = RequestCode.serialize(lib.format, entries, { lineWidth: 88 });
-    assert.equal(RequestCode.serialize(lib.format, entries), standard);
+    const standard = serializeFor(lib, entries, { lineWidth: 120 });
+    assert.equal(serializeFor(lib, entries), standard);
   });
 
-  test(`${lib.format}: lineWidth is clamped to 40..160, invalid values fall back to 88`, () => {
+  test(`${lib.name}: lineWidth has a 40-column floor and no upper limit; invalid values fall back to 120`, () => {
     const bare = [
       entry({ url: longUrl("http://127.0.0.1:1") }),
       entry(
@@ -401,28 +518,30 @@ for (const lib of LIBS) {
         { _rawRequestBody: Buffer.alloc(600, 0xab).toString("base64") }
       ),
     ];
-    const withWidth = (lineWidth) => RequestCode.serialize(lib.format, bare, { lineWidth });
+    const withWidth = (lineWidth) => serializeFor(lib, bare, { lineWidth });
     for (const lineWidth of [0, 1, -50, 39]) {
       assert.ok(maxWidth(withWidth(lineWidth)) <= 40, "min clamp, width " + lineWidth);
     }
-    for (const lineWidth of [161, 1e9]) {
-      const code = withWidth(lineWidth);
-      assert.ok(maxWidth(code) <= 160, "max clamp, width " + lineWidth);
-    }
-    const standard = RequestCode.serialize(lib.format, bare);
+    // Wider than any previous cap: the long URL and body may use the whole width.
+    const wide = withWidth(400);
+    assert.ok(maxWidth(wide) <= 400, "wide max " + maxWidth(wide));
+    const widest = Math.max(...codeLines(wide).map((line) => [...line].length));
+    assert.ok(widest > 160, "widths above 160 are honoured, widest " + widest);
+    assert.ok(codeLines(wide).length < codeLines(withWidth(160)).length, "400 needs fewer lines");
+    const standard = serializeFor(lib, bare);
     for (const lineWidth of [NaN, Infinity, "wide", null, undefined, {}]) {
       assert.equal(withWidth(lineWidth), standard, "fallback for " + String(lineWidth));
     }
     assert.equal(withWidth("100"), withWidth(100), "numeric strings are accepted");
     assert.ok(maxWidth(withWidth(100)) <= 100);
-    assert.equal(RequestCode.serialize(lib.format, bare, {}), standard);
+    assert.equal(serializeFor(lib, bare, {}), standard);
   });
 
-  test(`${lib.format}: lossy HAR text is rejected instead of re-encoded`, () => {
+  test(`${lib.name}: lossy HAR text is rejected instead of re-encoded`, () => {
     const bad = (text) =>
       assert.throws(
         () =>
-          RequestCode.serialize(lib.format, [
+          serializeFor(lib, [
             entry(
               { method: "POST", bodySize: 4, bodyMimeType: "application/octet-stream" },
               { _rawRequestBody: text }
@@ -435,16 +554,16 @@ for (const lib of LIBS) {
     bad("\udc00");
   });
 
-  test(`${lib.format}: unsupported captured encodings and uncaptured bodies are rejected`, () => {
+  test(`${lib.name}: unsupported captured encodings and uncaptured bodies are rejected`, () => {
     assert.throws(
       () =>
-        RequestCode.serialize(lib.format, [
+        serializeFor(lib, [
           entry({ method: "POST", bodySize: 3, bodyEncoding: "gzip" }, { _rawRequestBody: "abc" }),
         ]),
       /encoding/
     );
     assert.throws(
-      () => RequestCode.serialize(lib.format, [entry({ method: "POST", bodySize: 12 })]),
+      () => serializeFor(lib, [entry({ method: "POST", bodySize: 12 })]),
       /not captured/
     );
   });
@@ -463,27 +582,27 @@ test("python-requests: duplicate header names are rejected, never merged silentl
     ],
   ]) {
     assert.throws(
-      () => RequestCode.serialize("python-requests", [entry({ headers: headerList(headers) })]),
+      () => serializeFor(LIBS[0], [entry({ headers: headerList(headers) })]),
       /duplicate|multiple|same name|repeated/i
     );
   }
 });
 
 for (const lib of LIBS) {
-  test(`${lib.format}: non-UTF-8 charset only in the Content-Type header rejects raw text`, () => {
+  test(`${lib.name}: non-UTF-8 charset only in the Content-Type header rejects raw text`, () => {
     const headers = headerList([["Content-Type", "text/plain; charset=iso-8859-1"]]);
     assert.throws(
       () =>
-        RequestCode.serialize(lib.format, [
+        serializeFor(lib, [
           entry({ method: "POST", headers, bodySize: 4 }, { _rawRequestBody: "caf\u00e9" }),
         ]),
       { name: "Error" }
     );
   });
 
-  test(`${lib.format}: raw ASCII multipart is emitted as bytes.fromhex with the exact boundary`, () => {
+  test(`${lib.name}: raw ASCII multipart is emitted as bytes.fromhex with the exact boundary`, () => {
     const body = MULTIPART_TEXT;
-    const code = RequestCode.serialize(lib.format, [
+    const code = serializeFor(lib, [
       entry(
         {
           url: "http://h.test/up",
@@ -497,11 +616,120 @@ for (const lib of LIBS) {
     assert.ok(/bytes\.fromhex\(/.test(code), "multipart body must be bytes.fromhex");
     assert.ok(code.includes(`boundary=${BOUNDARY}`), "boundary must be kept in Content-Type");
   });
+
+  test(`${lib.name}: exact JSON text with a non-JSON type becomes a Python structure`, () => {
+    const cases = BODY_CASES.filter((c) => "payload" in c);
+    const render = (c, options) => serializeFor(lib, [bodyEntry(c, "http://h.test")], options);
+    const keyword = lib.module === "httpx" ? "content=" : "data=";
+    const walrus =
+      'stringify := lambda v: json.dumps(v, separators=(",", ":"), ensure_ascii=False)';
+    const def =
+      'def stringify(value):\n    return json.dumps(value, separators=(",", ":"), ensure_ascii=False)\n';
+    for (const c of cases) {
+      // `c.walrus` marks bodies whose outer value is compact JSON holding nested JSON text.
+      const code = render(c);
+      const walrusCode = render(c, { pythonNestedJson: "walrus" });
+      const inline = render(c, { pythonNestedJson: "inline" });
+      assert.equal(code.includes(keyword + "stringify({"), Boolean(c.walrus), c.name + code);
+      assert.equal(code.startsWith(def), /\bstringify\(/.test(code.slice(def.length)), c.name);
+      assert.ok(!code.includes(":="), c.name + ": the default must not use the walrus helper");
+      assert.equal(code.includes(keyword + "json.dumps("), c.payload && !c.walrus, c.name);
+      assert.equal(walrusCode.includes(walrus), Boolean(c.walrus), c.name + walrusCode);
+      assert.ok(!walrusCode.includes("def stringify"), c.name);
+      assert.equal(inline.includes(keyword + "json.dumps("), c.payload, c.name + inline);
+      assert.ok(!/:=|\bstringify\(/.test(inline), c.name + ": inline mode uses no helper");
+      for (const text of [code, walrusCode, inline]) {
+        assert.ok(
+          !/\bjson=/.test(text),
+          c.name + ": the captured Content-Type must not become JSON"
+        );
+        assert.ok(!text.includes("payload"), c.name + ": Python inlines the structure");
+        assert.ok(text.includes('"Content-Type": "text/plain;charset=UTF-8"'), c.name);
+      }
+      // The collector body nests six levels deep, too deep for 40 columns.
+      for (const lineWidth of c === cases[0] ? [60, 72] : [40, 60]) {
+        for (const pythonNestedJson of ["function", "walrus", "inline"]) {
+          const narrow = render(c, { lineWidth, pythonNestedJson });
+          assert.ok(maxWidth(narrow) <= lineWidth, c.name + " at " + lineWidth + "\n" + narrow);
+        }
+      }
+    }
+    // Layout assertions below are written for 88 columns, where the collector body must wrap.
+    const collector = render(cases[0], { lineWidth: 88 });
+    const encode = lib.module === "requests" ? '.encode("utf-8"),' : ",";
+    assert.ok(collector.startsWith(def + "\n\nresponse = "), collector);
+    assert.ok(collector.includes("\n    " + keyword + "stringify({\n"), collector);
+    assert.ok(collector.includes("\n    })" + encode + "\n"), collector);
+    assert.match(collector, /^ {16}"entries": stringify\(\[$/m);
+    assert.match(collector, /^ {24}"name": "index-JVHuKBxQ\.css",$/m);
+    assert.match(collector, /^ {16}\]\),$/m);
+    assert.ok(collector.includes('"meta": stringify({"depth": 2, "ids": [1]})'), collector);
+    assert.ok(collector.includes(`"spaced": '{"a": 1}',`), "spaced nested JSON stays text");
+    assert.ok(
+      collector.includes(`"escaped": '["caf\\\\u00e9"]',`),
+      "escaped nested JSON stays text"
+    );
+    // Compare without layout: the flags list wraps at this indent (adding a trailing comma).
+    const flat = collector.replace(/\s+/g, "").replace(/,([\]}])/g, "$1");
+    for (const value of [
+      '["false","5651832","null",stringify("q"),"[]x",stringify({})]',
+      '"numbers":["[1e-7]",stringify([1.0]),stringify([12345678901234567890])]',
+    ]) {
+      assert.ok(flat.includes(value), value + "\n" + collector);
+    }
+    assert.match(collector, /^ {8}"request_context": \{"referrer": "", .*\},$/m);
+    const walrusCollector = render(cases[0], { pythonNestedJson: "walrus", lineWidth: 88 });
+    // At 88 columns the binding no longer fits after `content=(`, so it gets its own line.
+    assert.ok(
+      walrusCollector.includes("\n    " + keyword + "(\n        " + walrus + "\n    )({\n"),
+      walrusCollector
+    );
+    assert.ok(
+      walrusCollector.includes('"meta": stringify({"depth": 2, "ids": [1]})'),
+      walrusCollector
+    );
+    const inline = render(cases[0], { pythonNestedJson: "inline", lineWidth: 88 });
+    assert.ok(inline.includes('"meta": json.dumps('), inline);
+    assert.ok(inline.includes('], separators=(",", ":"), ensure_ascii=False),'), inline);
+    // An outer body in json.dumps's default spacing cannot be sent through a compact helper, but
+    // its nested values can still use the declared one.
+    const spaced = render(cases[1]);
+    assert.ok(spaced.includes('"a": stringify([1, {"b": 2}])'), spaced);
+    assert.ok(spaced.includes(keyword + "json.dumps({"), spaced);
+    const spacedWalrus = render(cases[1], { pythonNestedJson: "walrus" });
+    const nested = 'json.dumps([1, {"b": 2}], separators=(",", ":"), ensure_ascii=False)';
+    assert.ok(spacedWalrus.includes('"a": ' + nested), "walrus needs a compact outer body");
+    assert.ok(spaced.includes('"c": "[1, 2]"'), spaced);
+    const ascii = render(cases[3]);
+    assert.ok(ascii.includes(keyword + 'json.dumps({"q": "caf\u00e9", "n": [1, 2]}),'), ascii);
+    const unicode = render(cases[2]);
+    const call = '}, separators=(",", ":"), ensure_ascii=False)';
+    assert.ok(unicode.includes(call + encode), unicode);
+  });
+
+  test(`${lib.name}: a batch declares the stringify helper once, before the first request`, () => {
+    const collector = BODY_CASES.find((c) => c.walrus);
+    const code = serializeFor(lib, [
+      bodyEntry(collector, "http://h.test"),
+      bodyEntry(collector, "http://h.test"),
+    ]);
+    assert.equal(code.split("def stringify(").length - 1, 1, code);
+    assert.ok(code.startsWith("def stringify("), code);
+    assert.equal(code.split("response = ").length - 1, 2, code);
+  });
+
+  test(`${lib.name}: exact JSON with a JSON type passes the structure as json=`, () => {
+    const text =
+      lib.module === "httpx" ? '{"a":[1,{"b":null}],"c":"\u00e9"}' : '{"a": [1, {"b": null}]}';
+    const c = { bytes: Buffer.from(text), mime: "application/json", index: 0, path: "/" };
+    const code = serializeFor(lib, [bodyEntry(c, "http://h.test")]);
+    assert.ok(code.includes("    json={"), code);
+  });
 }
 
 test("python-httpx: GET/DELETE/OPTIONS with a body use httpx.request(method=...), not helpers", () => {
   for (const method of ["GET", "DELETE", "OPTIONS"]) {
-    const code = RequestCode.serialize("python-httpx", [
+    const code = serializeFor(LIBS[1], [
       entry({ url: "http://h.test/x", method, bodySize: 3 }, { _rawRequestBody: "a=1" }),
     ]);
     assert.ok(/^response = httpx\.request\(/.test(code), method + " must use httpx.request");
@@ -675,9 +903,9 @@ const WRAPPER = [
   "sys.stdout.write('IMPORTS ' + json.dumps(sorted(mods)) + '\\n')",
   "sys.stdout.write('PRINTS ' + json.dumps(prints) + '\\n')",
   "sys.stdout.flush()",
-  "# The generated code intentionally has no imports; provide the library under test.",
+  "# The generated code intentionally has no imports; provide json and the library under test.",
   "import importlib",
-  "exec(compile(tree, path, 'exec'), {'__name__': '__main__', sys.argv[2]: importlib.import_module(sys.argv[2])})",
+  "exec(compile(tree, path, 'exec'), {'__name__': '__main__', 'json': json, sys.argv[2]: importlib.import_module(sys.argv[2])})",
   "",
 ].join("\n");
 
@@ -764,12 +992,12 @@ function headerValues(request, name) {
 
 for (const lib of LIBS) {
   test(
-    `${lib.format}: native bodies, headers and framing arrive byte-for-byte`,
+    `${lib.name}: native bodies, headers and framing arrive byte-for-byte`,
     { skip: skipReason(lib), timeout: 120000 },
     async () => {
       const result = await execute(lib, (base) =>
-        RequestCode.serialize(
-          lib.format,
+        serializeFor(
+          lib,
           BODY_CASES.map((c) => bodyEntry(c, base))
         )
       );
@@ -806,8 +1034,37 @@ for (const lib of LIBS) {
     }
   );
 
+  // The default stringify helper is covered by the byte-for-byte test above.
+  for (const [mode, forbidden] of [
+    ["inline", /:=|stringify/],
+    ["walrus", /def stringify/],
+  ]) {
+    test(
+      `${lib.name}: native JSON text bodies are byte-exact with ${mode} nested JSON and narrow lines`,
+      { skip: skipReason(lib), timeout: 60000 },
+      async () => {
+        const cases = BODY_CASES.filter((c) => c.text !== undefined);
+        const result = await execute(lib, (base) =>
+          serializeFor(
+            lib,
+            cases.map((c) => bodyEntry(c, base)),
+            { pythonNestedJson: mode, lineWidth: 60 }
+          )
+        );
+        assertRan(result, cases.length);
+        assert.ok(!forbidden.test(result.code), mode + " mode must not use another helper");
+        cases.forEach((c, index) => {
+          const request = result.requests[index];
+          assert.equal(request.target, c.path, c.name);
+          assert.equal(request.body.toString("hex"), c.bytes.toString("hex"), c.name);
+          assert.deepEqual(headerValues(request, "content-type"), [c.mime], c.name);
+        });
+      }
+    );
+  }
+
   test(
-    `${lib.format}: native long URL with encoded duplicate and empty params is preserved`,
+    `${lib.name}: native long URL with encoded duplicate and empty params is preserved`,
     { skip: skipReason(lib), timeout: 60000 },
     async () => {
       const styles = lib.module === "httpx" ? ["canonical", "mixed"] : ["canonical"];
@@ -815,8 +1072,8 @@ for (const lib of LIBS) {
       const result = await execute(lib, (base) => {
         const urls = styles.map((style) => longUrl(base, style));
         targets = urls.map((url) => url.slice(base.length));
-        return RequestCode.serialize(
-          lib.format,
+        return serializeFor(
+          lib,
           urls.map((url) => entry({ url }))
         );
       });
@@ -834,11 +1091,11 @@ for (const lib of LIBS) {
   );
 
   test(
-    `${lib.format}: native absent body on GET/DELETE and empty vs absent body on POST`,
+    `${lib.name}: native absent body on GET/DELETE and empty vs absent body on POST`,
     { skip: skipReason(lib), timeout: 60000 },
     async () => {
       const result = await execute(lib, (base) =>
-        RequestCode.serialize(lib.format, [
+        serializeFor(lib, [
           entry({ url: base + "/get-absent" }),
           entry({ url: base + "/delete-absent", method: "DELETE" }),
           entry({ url: base + "/post-absent", method: "POST", bodySize: 0 }),
@@ -866,7 +1123,7 @@ for (const lib of LIBS) {
   );
 
   test(
-    `${lib.format}: native structured-only params use the exact serialization normalize reports`,
+    `${lib.name}: native structured-only params use the exact serialization normalize reports`,
     { skip: skipReason(lib), timeout: 60000 },
     async () => {
       const params = [
@@ -884,7 +1141,7 @@ for (const lib of LIBS) {
       let expected;
       const result = await execute(lib, (base) => {
         expected = Buffer.from(RequestCode.normalize(make(base)).body.bytes);
-        return RequestCode.serialize(lib.format, [make(base)]);
+        return serializeFor(lib, [make(base)]);
       });
       assertRan(result, 1);
       assert.equal(result.requests[0].body.toString("hex"), expected.toString("hex"));
@@ -896,16 +1153,14 @@ for (const lib of LIBS) {
   );
 
   test(
-    `${lib.format}: native output is valid and byte-exact at every line width`,
+    `${lib.name}: native output is valid and byte-exact at every line width`,
     { skip: skipReason(lib), timeout: 120000 },
     async () => {
       const widths = [undefined, 72, 120, 0, 1, 1e9, NaN];
       let sources;
       const result = await execute(lib, (base) => {
         sources = widthEntries(base);
-        return widths
-          .map((lineWidth) => RequestCode.serialize(lib.format, sources, { lineWidth }))
-          .join("\n");
+        return widths.map((lineWidth) => serializeFor(lib, sources, { lineWidth })).join("\n");
       });
       assertRan(result, widths.length * 2);
       const expectedUrl = (entries) =>
@@ -936,7 +1191,7 @@ test(
       ["X-Dup", "third, with comma"],
     ];
     const result = await execute(LIBS[1], (base) =>
-      RequestCode.serialize("python-httpx", [
+      serializeFor(LIBS[1], [
         entry(
           { url: base + "/dups", method: "POST", headers: headerList(captured), bodySize: 2 },
           { _rawRequestBody: "hi" }
@@ -970,9 +1225,7 @@ test(
       ["Accept", "text/x-custom"],
     ];
     const result = await execute(LIBS[0], (base) =>
-      RequestCode.serialize("python-requests", [
-        entry({ url: base + "/hdr", headers: headerList(captured) }),
-      ])
+      serializeFor(LIBS[0], [entry({ url: base + "/hdr", headers: headerList(captured) })])
     );
     assertRan(result, 1);
     const seen = result.requests[0].headers;
@@ -1000,7 +1253,7 @@ test("python-requests: URLs that requests would rewrite are rejected with a diag
   ];
   for (const url of unsupported) {
     assert.throws(
-      () => RequestCode.serialize("python-requests", [entry({ url })]),
+      () => serializeFor(LIBS[0], [entry({ url })]),
       { name: "Error", message: /Requests normalizes this URL/ },
       url
     );
@@ -1013,8 +1266,8 @@ test(
   async () => {
     const targets = ["/t%7E/%7e?x=%7E&y=%7e&z&&z=", "/low%2fer?w=%e9&w=%E9&w=&p=a+b"];
     const result = await execute(LIBS[1], (base) =>
-      RequestCode.serialize(
-        "python-httpx",
+      serializeFor(
+        LIBS[1],
         targets.map((target) => entry({ url: base + target }))
       )
     );

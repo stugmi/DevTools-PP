@@ -13,6 +13,7 @@ const vm = require("node:vm");
 const jsRoot = path.join(__dirname, "..", "src", "panel", "js");
 const context = vm.createContext({ window: {} });
 for (const file of [
+  "lib/code-format.js",
   "lib/filetype.js",
   "capture/request-capture.js",
   "lib/json-payload.js",

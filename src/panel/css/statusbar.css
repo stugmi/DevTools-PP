@@ -11,49 +11,56 @@
   flex-shrink: 0;
 }
 
+/* The watching toggle: a 6px dot inside a larger click target. */
 .indicator {
+  position: relative;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-left: -5px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.indicator::after {
+  position: absolute;
+  top: 5px;
+  left: 5px;
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.indicator.inactive {
   background: var(--text-dim);
+  border-radius: 50%;
+  content: "";
 }
 
-.indicator.connecting {
-  background: var(--orange);
+.indicator:hover {
+  background: var(--bg-4);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .indicator.connecting {
-    animation: pulse 1s infinite;
-  }
+.indicator:focus-visible {
+  outline: 1px solid var(--border-active);
 }
 
-.indicator.active {
+.indicator.active::after {
   background: var(--green);
 }
 
-.indicator.error {
-  background: var(--red);
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.4;
-  }
+/* Paused: a hollow dot so the state reads at a glance without relying on color. */
+.indicator.paused::after {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text-secondary);
 }
 
 #status-text {
   color: var(--text-secondary);
   font-size: var(--fs-sm);
+}
+
+#status-text.error {
+  color: var(--red);
 }
 
 .status-chip {

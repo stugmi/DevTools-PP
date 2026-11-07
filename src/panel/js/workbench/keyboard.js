@@ -84,6 +84,11 @@ function dismissTopLayer(event) {
     closeQuickPicker();
     return true;
   }
+  if (window.SourceFilterPanel?.isOpen()) {
+    window.SourceFilterPanel.close();
+    return true;
+  }
+  if (window.DomainFilterPanel.close()) return true;
   if (document.body.classList.contains("dragging-view")) return false; // layout drag owns Esc
   if (monacoWidgetOpen(target)) return false;
   if (menuOpen()) {
@@ -128,6 +133,7 @@ function selectAdjacentRequest(step) {
 
 function arrowNavigatesRequests(target) {
   if (isTypingTarget(target) || !el.quickPicker.hidden || menuOpen()) return false;
+  if (window.DomainFilterPanel.isOpen()) return false;
   if (settingsOwns(target)) return false;
   // The explorer tree, splitters and the hex viewer grid use the arrow keys themselves.
   if (

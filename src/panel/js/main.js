@@ -18,6 +18,9 @@ function debounced(fn, ms) {
 }
 
 el.btnRefresh.addEventListener("click", () => {
+  // Starting a fresh capture is an explicit request to watch again.
+  state.capturePaused = false;
+  updateCaptureIndicator();
   resetCapture();
   scanAll();
 });
@@ -85,7 +88,6 @@ el.viewToggle.addEventListener("click", (event) => {
 });
 
 function updateRequestFilters() {
-  state.requestFilters.domain = el.requestDomainFilter.value;
   state.requestFilters.method = el.requestMethodFilter.value;
   state.requestFilters.minDuration = el.requestTimeMin.value;
   state.requestFilters.maxDuration = el.requestTimeMax.value;
@@ -94,7 +96,6 @@ function updateRequestFilters() {
 
 const queueRequestFilters = debounced(updateRequestFilters, 150);
 
-el.requestDomainFilter.addEventListener("change", updateRequestFilters);
 el.requestMethodFilter.addEventListener("change", updateRequestFilters);
 el.requestTimeMin.addEventListener("input", queueRequestFilters);
 el.requestTimeMax.addEventListener("input", queueRequestFilters);
@@ -121,7 +122,7 @@ el.requestFilterClear.addEventListener("click", () => {
   state.requestFilters.method = "";
   state.requestFilters.minDuration = "";
   state.requestFilters.maxDuration = "";
-  el.requestDomainFilter.value = "";
+  window.DomainFilterPanel.refresh();
   el.requestMethodFilter.value = "";
   el.requestTimeMin.value = "";
   el.requestTimeMax.value = "";
@@ -205,7 +206,7 @@ function syncWrapButton() {
 el.btnWrap.addEventListener("click", () => {
   SourceEditor.toggleWrap()
     .then((on) => el.btnWrap.classList.toggle("active", on))
-    .catch((error) => setStatus("inactive", `Wrap failed: ${error.message}`));
+    .catch((error) => setStatus(`Wrap failed: ${error.message}`, { error: true }));
 });
 syncWrapButton();
 
@@ -215,7 +216,7 @@ el.btnPretty.addEventListener("click", () => {
   renderContent(state.lastPreviewOriginal, state.lastPreviewLang, state.lastPreviewBadge);
 });
 
-// Preferences (theme, fonts, formatting, export, location filter) live in the Settings panel.
+// Preferences (theme, fonts, formatting, export, source filter) live in the Settings panel.
 el.formatSelect.value = prefs.archiveFormat;
 el.formatSelect.addEventListener("change", () => {
   prefs.archiveFormat = el.formatSelect.value === "tar" ? "tar" : "zip";
@@ -223,7 +224,7 @@ el.formatSelect.addEventListener("change", () => {
 });
 window.AppSettings.applyEditorPreferences();
 
-el.statusFilter.addEventListener("click", () => window.EditorSettingsPanel.open("Location Filter"));
+el.statusFilter.addEventListener("click", () => window.SourceFilterPanel.open());
 
 const applyFilterText = debounced(() => {
   state.filterText = el.filterInput.value.trim();
@@ -293,7 +294,7 @@ el.quickPicker.addEventListener("mousedown", (event) => {
 // -- Init --
 
 updateCollectionModeUI();
-updateLocationFilterUI();
+updateSourceFilterUI();
 for (const btn of el.workspaceTabs.querySelectorAll(".workspace-tab")) {
   const active = btn.dataset.workspace === state.workspace;
   btn.classList.toggle("active", active);

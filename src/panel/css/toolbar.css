@@ -138,7 +138,7 @@
 }
 
 #request-filter-clear {
-  margin-left: auto;
+  /* The Domains button owns the right-aligned slot. */
   border: 0;
   background: transparent;
   color: var(--text-dim);
@@ -150,6 +150,95 @@
 
 #request-filter-clear:hover {
   color: var(--text-primary);
+}
+/* Domains is rarely used, so it sits at the right end; once set it turns accent and a chip names it. */
+.request-domain-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  max-width: 180px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--accent-request) 35%, var(--border));
+  border-radius: 3px;
+  background: var(--bg-3);
+  color: var(--text-secondary);
+  font: var(--fs-xs) var(--font-ui);
+  cursor: pointer;
+}
+
+.request-domain-button svg {
+  flex-shrink: 0;
+}
+
+.request-domain-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.request-domain-button:hover,
+.request-domain-button[aria-expanded="true"] {
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+
+.request-domain-button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.request-domain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 260px;
+  height: 21px;
+  padding: 0 2px 0 9px;
+  border: 1px solid var(--accent);
+  border-radius: 11px;
+  background: var(--accent-dim);
+  color: var(--text-primary);
+  font: 600 var(--fs-xs) var(--font-ui);
+}
+
+.request-domain-chip[hidden] {
+  display: none;
+}
+
+.request-domain-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.request-domain-chip button {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: var(--fs-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.request-domain-chip button:hover {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .request-filter-field {

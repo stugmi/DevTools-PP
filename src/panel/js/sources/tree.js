@@ -6,37 +6,42 @@
 
 // -- Tree model --
 
-// With `groupByDomain`, the first level is one virtual folder per domain
-// (like DevTools' Sources panel); real folder and file paths stay untouched, so
-// tabs, search and export keep working with the same keys.
-function buildTreeModel(flat, { groupByDomain = false } = {}) {
-  const root = { name: "", children: {}, files: {}, path: "", domain: "" };
+// Files sit under an optional virtual group folder (domain or file type, see groupOf) and then
+// under their real folders. Real folder and file paths stay untouched, so tabs, search and
+// export keep working with the same keys. With folders off, each group lists its files by
+// full path.
+function buildTreeModel(flat, { section }) {
+  const root = { name: "", children: {}, files: {}, path: "", group: "" };
+  const groupKind = groupModeFor(section);
+  const nest = nestFoldersFor(section);
 
   for (const [filePath, data] of Object.entries(flat)) {
-    const parts = filePath.split("/").filter(Boolean);
     let node = root;
-    let domain = "";
-    if (groupByDomain) {
-      domain = domainOf(data);
-      if (!node.children[domain]) {
-        node.children[domain] = {
-          name: domain,
-          children: {},
-          files: {},
-          path: "",
-          domain,
-          isDomain: true,
-        };
-      }
-      node = node.children[domain];
+    const group = groupOf(section, filePath, data);
+    if (group) {
+      node = root.children[group] ??= {
+        name: groupLabelFor(section, group),
+        children: {},
+        files: {},
+        path: "",
+        group,
+        isGroup: true,
+        groupKind,
+      };
     }
-    let currentPath = "";
 
+    if (!nest) {
+      node.files[filePath] = { name: filePath, path: filePath, data };
+      continue;
+    }
+
+    const parts = filePath.split("/").filter(Boolean);
+    let currentPath = "";
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       currentPath += (currentPath ? "/" : "") + part;
       if (!node.children[part]) {
-        node.children[part] = { name: part, children: {}, files: {}, path: currentPath, domain };
+        node.children[part] = { name: part, children: {}, files: {}, path: currentPath, group };
       }
       node = node.children[part];
     }
@@ -63,19 +68,19 @@ function expandSingleChildChain(dir, section) {
   let node = dir;
   while (Object.keys(node.files).length === 0 && Object.values(node.children).length === 1) {
     const child = Object.values(node.children)[0];
-    const key = dirKey(section, child.path, child.domain);
+    const key = dirKey(section, child.path, child.group);
     if (userToggledDirs.has(key)) break;
     openDirs.add(key);
     node = child;
   }
 }
 
-// A site usually has exactly one authored domain: open it instead of making
+// A site usually has exactly one group (one authored domain): open it instead of making
 // the user click through a single-row level. Respects a manual collapse.
-function openLoneDomain(section, model) {
-  const domains = Object.values(model.children).filter((node) => node.isDomain);
-  if (domains.length !== 1) return;
-  const key = dirKey(section, "", domains[0].domain);
+function openLoneGroup(section, model) {
+  const groups = Object.values(model.children).filter((node) => node.isGroup);
+  if (groups.length !== 1) return;
+  const key = dirKey(section, "", groups[0].group);
   if (!userToggledDirs.has(key)) openDirs.add(key);
 }
 
@@ -100,14 +105,14 @@ let treeTabInfo = null;
 function treeRowInfo(row) {
   if (!row) return null;
   const { type, section } = row.dataset;
-  return { type, section, path: row.dataset.path ?? "", domain: row.dataset.domain ?? "" };
+  return { type, section, path: row.dataset.path ?? "", group: row.dataset.group ?? "" };
 }
 
 function findTreeRow(info) {
   if (!info) return null;
-  const domain = info.domain ? `[data-domain="${CSS.escape(info.domain)}"]` : ":not([data-domain])";
+  const group = info.group ? `[data-group="${CSS.escape(info.group)}"]` : ":not([data-group])";
   return el.treeRoot.querySelector(
-    `[data-type="${info.type}"][data-section="${info.section}"][data-path="${CSS.escape(info.path)}"]${domain}`
+    `[data-type="${info.type}"][data-section="${info.section}"][data-path="${CSS.escape(info.path)}"]${group}`
   );
 }
 
@@ -160,15 +165,19 @@ function renderTree(counts) {
   for (const section of sections) {
     const model = modelFor(section);
     if (!model) continue;
-    openLoneDomain(section, model);
+    openLoneGroup(section, model);
     const count = counts?.[section] ?? getItemsInSection(section).length;
     if (showHeaders) renderSectionHeader(section, count);
     if (showHeaders && collapsedSections.has(section)) continue;
     if (count === 0) {
       const empty = document.createElement("div");
       empty.className = "tree-section-empty";
-      empty.textContent =
-        section === "mapped" ? "No source maps detected" : "No deployed resources captured";
+      const hiddenByFilter = state.sourceFilter.active && Object.keys(treeFor(section)).length > 0;
+      empty.textContent = hiddenByFilter
+        ? "No files match the source filter"
+        : section === "mapped"
+          ? "No source maps detected"
+          : "No deployed resources captured";
       el.treeRoot.appendChild(empty);
       continue;
     }
@@ -189,6 +198,15 @@ const FOLDER_ICON =
   '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 4.25c0-.55.45-1 1-1h3.1l1.4 1.5h6.5c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1h-11c-.55 0-1-.45-1-1v-6.5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>';
 const DOMAIN_ICON =
   '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 12.5a3 3 0 0 1-.4-5.97A4 4 0 0 1 11.9 6 3.25 3.25 0 0 1 11.5 12.5h-7z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>';
+const TYPE_ICON =
+  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 2.5h5l6 6-5 5-6-6v-5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><circle cx="5.25" cy="5.25" r="1" fill="currentColor"/></svg>';
+
+// Domain groups get a cloud and type groups a tag. A top-level folder of the Deployed section is
+// a host, so it gets the cloud too.
+function dirIcon(dir, depth, section) {
+  if (dir.groupKind === "type") return TYPE_ICON;
+  return dir.isGroup || (depth === 0 && section === "raw") ? DOMAIN_ICON : FOLDER_ICON;
+}
 
 // Sections the user folded in the Explorer (session only).
 const collapsedSections = new Set();
@@ -253,11 +271,10 @@ function dirHasMatch(dir, filter) {
 }
 
 // Opens or closes every folder of `section` under `basePath` ("" = everything),
-// optionally limited to one `domain` (Authored is grouped by domain).
-function setTreeFoldState(section, basePath, open, domain) {
+// optionally limited to one `group` (a domain or file type group).
+function setTreeFoldState(section, basePath, open, group) {
   const tree = filteredTreeFor(section);
   const prefix = basePath ? basePath + "/" : "";
-  const grouped = section === "mapped";
   const mark = (key) => {
     userToggledDirs.add(key);
     if (open) openDirs.add(key);
@@ -265,22 +282,18 @@ function setTreeFoldState(section, basePath, open, domain) {
   };
   for (const [filePath, entry] of Object.entries(tree)) {
     if (basePath && !filePath.startsWith(prefix)) continue;
-    const entryDomain = grouped ? domainOf(entry) : "";
-    if (domain && entryDomain !== domain) continue;
-    if (grouped && !basePath) mark(dirKey(section, "", entryDomain));
-    let dirPath = "";
-    for (const part of filePath.split("/").filter(Boolean).slice(0, -1)) {
-      dirPath += (dirPath ? "/" : "") + part;
-      if (basePath && dirPath.length < basePath.length) continue;
-      mark(dirKey(section, dirPath, entryDomain));
+    if (group && groupOf(section, filePath, entry) !== group) continue;
+    for (const ancestor of treeAncestors(section, filePath, entry)) {
+      if (basePath && (!ancestor.path || ancestor.path.length < basePath.length)) continue;
+      mark(dirKey(section, ancestor.path, ancestor.group));
     }
   }
-  if (!basePath && !domain) collapsedSections.delete(section);
+  if (!basePath && !group) collapsedSections.delete(section);
   renderTree();
 }
 
-function dirKey(section, dirPath, domain = "") {
-  return `${section}::${domain}::${dirPath}`;
+function dirKey(section, dirPath, group = "") {
+  return `${section}::${group}::${dirPath}`;
 }
 
 function revealFileInTree(path, section) {
@@ -295,20 +308,9 @@ function revealFileInTree(path, section) {
     return row;
   }
 
-  const parts = path.split("/").filter(Boolean);
-  const domain = section === "mapped" ? domainOf(treeFor(section)[path]) : "";
-  let dirPath = "";
   let expandedAncestor = false;
-  if (domain) {
-    const domainKey = dirKey(section, "", domain);
-    if (!openDirs.has(domainKey)) {
-      openDirs.add(domainKey);
-      expandedAncestor = true;
-    }
-  }
-  for (const part of parts.slice(0, -1)) {
-    dirPath += (dirPath ? "/" : "") + part;
-    const key = dirKey(section, dirPath, domain);
+  for (const { path: dirPath, group } of treeAncestors(section, path, treeFor(section)[path])) {
+    const key = dirKey(section, dirPath, group);
     if (!openDirs.has(key)) {
       openDirs.add(key);
       expandedAncestor = true;
@@ -331,7 +333,7 @@ function revealFileInTree(path, section) {
 }
 
 function renderDirNode(dir, container, depth, filter, section) {
-  const key = dirKey(section, dir.path, dir.domain);
+  const key = dirKey(section, dir.path, dir.group);
   const isOpen = openDirs.has(key) || (filter && filter.length > 0);
   const childCount = countDescendants(dir);
 
@@ -342,7 +344,7 @@ function renderDirNode(dir, container, depth, filter, section) {
   row.dataset.type = "dir";
   row.dataset.section = section;
   row.dataset.depth = depth;
-  if (dir.domain) row.dataset.domain = dir.domain;
+  if (dir.group) row.dataset.group = dir.group;
   row.setAttribute("role", "treeitem");
   row.setAttribute("aria-level", String(depth + 1));
   row.setAttribute("aria-expanded", String(Boolean(isOpen)));
@@ -354,7 +356,7 @@ function renderDirNode(dir, container, depth, filter, section) {
         <path d="M2 1l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </span>
-    <span class="node-icon node-icon-dir">${depth === 0 ? DOMAIN_ICON : FOLDER_ICON}</span>
+    <span class="node-icon node-icon-dir">${dirIcon(dir, depth, section)}</span>
     <span class="node-name dir-name">${highlightMatch(dir.name, filter)}</span>
     <span class="node-badge">${childCount}</span>
   `;
@@ -429,7 +431,7 @@ el.treeRoot.setAttribute("role", "tree");
 el.treeRoot.setAttribute("aria-label", "Explorer");
 
 // One set of listeners on #tree-root serves every row; rows carry data-type, data-path,
-// data-section and (for authored dirs) data-domain.
+// data-section and (for dirs inside a domain or file type group) data-group.
 
 function toggleSection(section) {
   if (collapsedSections.has(section)) collapsedSections.delete(section);
@@ -443,9 +445,9 @@ function isRowOpen(row) {
   return row.nextElementSibling?.style.display !== "none";
 }
 
-function findDirNode(section, path, domain) {
+function findDirNode(section, path, group) {
   let node = modelFor(section);
-  if (node && domain) node = node.children[domain];
+  if (node && group) node = node.children[group];
   for (const part of path.split("/").filter(Boolean)) {
     if (!node) return null;
     node = node.children[part];
@@ -456,14 +458,14 @@ function findDirNode(section, path, domain) {
 function toggleDirRow(row, forceOpen) {
   const section = row.dataset.section;
   const path = row.dataset.path ?? "";
-  const domain = row.dataset.domain ?? "";
-  const dir = findDirNode(section, path, domain);
+  const group = row.dataset.group ?? "";
+  const dir = findDirNode(section, path, group);
   const childContainer = row.nextElementSibling;
   if (!dir || !childContainer) return;
   const wasOpen = childContainer.style.display !== "none";
   const nowOpen = forceOpen ?? !wasOpen;
   if (nowOpen === wasOpen) return;
-  const key = dirKey(section, path, domain);
+  const key = dirKey(section, path, group);
   userToggledDirs.add(key);
   childContainer.style.display = nowOpen ? "block" : "none";
   row.querySelector(".node-toggle").classList.toggle("open", nowOpen);
@@ -485,7 +487,7 @@ function openContextMenuFor(row, x, y) {
   if (type === "section") {
     state.contextTarget = { type, path: "", section };
   } else if (type === "dir") {
-    state.contextTarget = { type, path, section, domain: row.dataset.domain || undefined };
+    state.contextTarget = { type, path, section, group: row.dataset.group || undefined };
   } else {
     state.contextTarget = { type: "file", path, section };
     openFile(path, section);

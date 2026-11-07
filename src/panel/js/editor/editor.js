@@ -267,9 +267,10 @@ window.SourceEditor = (() => {
   ].join("\n");
 
   // 2307/2792/7016: unresolved module / missing declaration file.
+  // 2347: type arguments on a call whose callee is `any` because its import did not resolve.
   // 2304/2580/2591/2503: unknown name / namespace (bundler-injected globals).
   // 2686/7026/2875: JSX without React in scope / intrinsic elements / runtime.
-  const IGNORED_DIAGNOSTICS = [2307, 2792, 7016, 2304, 2580, 2591, 2503, 2686, 7026, 2875];
+  const IGNORED_DIAGNOSTICS = [2307, 2792, 7016, 2347, 2304, 2580, 2591, 2503, 2686, 7026, 2875];
   const PROJECT_MAX_FILES = 1500;
 
   let diagnosticsMode = "smart";
