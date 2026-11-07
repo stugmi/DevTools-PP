@@ -45,18 +45,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(bun -p "require('./package.json').version")
-          changelog="changelogs/$version.md"
-          if [ ! -s "$changelog" ]; then
-            echo "::error file=$changelog::Missing changelog for version $version"
-            exit 1
-          fi
+          notes="$RUNNER_TEMP/notes.md"
+          # Fails when CHANGELOG.md has no non-empty section for this version.
+          bun scripts/changelog-notes.js "$version" > "$notes"
 
           # Published versions keep their original tag and assets; only notes can change.
           if gh release view "v$version" > /dev/null 2>&1; then
-            gh release edit "v$version" --notes-file "$changelog"
+            gh release edit "v$version" --notes-file "$notes"
           else
             gh release create "v$version" out/* --target "$GITHUB_SHA" \
-              --title "Source Exporter $version" --notes-file "$changelog" --latest=false
+              --title "Source Exporter $version" --notes-file "$notes" --latest=false
           fi
 
           short=${GITHUB_SHA::7}
@@ -69,4 +67,4 @@ jobs:
             gh release delete latest --yes
           fi
           gh release create latest out/* --verify-tag --latest \
-            --target "$GITHUB_SHA" --title "$title" --notes-file "$changelog"
+            --target "$GITHUB_SHA" --title "$title" --notes-file "$notes"
