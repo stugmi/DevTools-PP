@@ -6,6 +6,8 @@
   "scripts": {
     "clean": "bun scripts/build.js --clean",
     "build": "bun scripts/build.js",
+    "dev": "bun scripts/dev.js",
+    "screenshots": "bun scripts/screenshots.js",
     "typecheck": "bun run --bun tsc --noEmit",
     "typecheck:watch": "bun run --bun tsc --noEmit --watch",
     "test": "bun test ./scripts/test-*.js",
@@ -27,6 +29,7 @@
     "crx3": "2.0.0",
     "globals": "^15.14.0",
     "monaco-editor": "0.52.2",
+    "playwright": "1.65.0",
     "typescript": "^5.7.2"
   },
   "dependencies": {

@@ -6,6 +6,14 @@
 
 - Rename Source Exporter to **DevTools++** in the extension, panel, popup, settings, and documentation. Release downloads use `devtools-plus-plus.zip` and `devtools-plus-plus.crx`.
 
+### Developer Information
+
+- Add `bun run dev` for a [live standalone panel preview][live-panel], automatically reloading source changes without rebuilding or reloading the extension. A local simulated capture populates the editor and Network views without an inspected tab.
+- Add `bun run screenshots` to [refresh all eight documentation images][screenshots] from the current dev panel and its local demo configuration in an isolated headless renderer.
+
+[live-panel]: https://github.com/stugmi/SourceExporter/blob/main/docs/development.md#live-panel-preview
+[screenshots]: https://github.com/stugmi/SourceExporter/blob/main/docs/development.md#documentation-screenshots
+
 ## 1.5.1
 
 ### Bug Fixes
