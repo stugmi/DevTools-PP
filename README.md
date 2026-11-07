@@ -7,27 +7,30 @@ I built it because Chromium's DevTools was missing features I'd wanted for a whi
 starting with exporting files detected through source maps. I've tried to keep the
 familiar DevTools behavior first, then add new features and quality-of-life improvements.
 
+![Files workspace: GitHub's source-mapped Ago.tsx, reconstructed from production bundles, open in the editor](docs/images/files-editor.png)
+
 ## Features
 
 - Source inspection
-  - ZIP and TAR exports
+  - [ZIP and TAR exports](docs/exporting.md)
     - Source-mapped and raw files, folders, domains, or whole captures
-  - Monaco code editor
+  - [Source filter](docs/usage.md#filter-and-group-files) with include/exclude rules and grouping by domain or file type
+  - [Monaco code editor](docs/editor.md)
     - Basic code completion, go to definition, and find references
-    - Syntax highlighting and formatting
-    - Minimap navigation and editor options in Settings
-  - Search across all captured files
-- Network request inspection
-  - Filtering, sorting, and request timestamps
+    - Syntax highlighting and [configurable formatting](docs/settings.md#code-formatting)
+    - Minimap navigation and [editor options](docs/settings.md#editor-monaco) in Settings
+  - [Search across all captured files](docs/editor.md#editing-and-search)
+- [Network request inspection](docs/network.md)
+  - [Filtering](docs/network.md#filters), sorting, and request timestamps
   - Headers, payloads, responses, cookies, and timing details
-    - Source and parsed body views, sandboxed previews, and a hex viewer with a data inspector
-  - Copy as Python (requests/httpx), browser/Node.js fetch, PowerShell, or cURL
+    - Source and parsed body views, sandboxed previews, and a [hex viewer](docs/network.md#detail-views) with a data inspector
+  - [Copy as](docs/network.md#copy-as-code) Python (requests or httpx), browser/Node.js fetch, PowerShell, or cURL
     - Copy or export multiple selected requests
-    - Preferred replay format and line width in Settings
-  - Initiator call stacks with source navigation
+    - [Preferred replay format, line width, and embedded JSON style](docs/settings.md#network) in Settings
+  - [Initiator](docs/network.md#initiator) call stacks with source navigation
 - Workspace customization
-  - Dockable panels and alternative themes
-  - VS Code-style command palette and searchable settings
+  - Dockable panels and [alternative themes](docs/settings.md#color-theme)
+  - VS Code-style command palette and [searchable settings](docs/settings.md)
 
 ## Install
 
@@ -49,6 +52,7 @@ To build from source, see [development](docs/development.md).
 - [Exporting files and requests](docs/exporting.md)
 - [Editor and keyboard shortcuts](docs/editor.md)
 - [Network requests](docs/network.md)
+- [Settings](docs/settings.md)
 - [Development](docs/development.md)
 - [How it works](docs/architecture.md)
-- [Changelogs](changelogs/)
+- [Changelog](CHANGELOG.md)

@@ -2,7 +2,7 @@
 
 Save individual files, directories, source groups, or the whole capture as an archive.
 
-Choose **ZIP** or **TAR** in the toolbar before exporting.
+Choose **ZIP** or **TAR** in the toolbar before exporting, or set the default [Archive format](settings.md#archive-format).
 
 | Scope         | Action                                                                 |
 | ------------- | ---------------------------------------------------------------------- |
@@ -11,9 +11,9 @@ Choose **ZIP** or **TAR** in the toolbar before exporting.
 | One section   | Click **Export** in the Authored, Deployed, or Requests section header |
 | Everything    | Click **Export All**, or right-click and choose **Export all sources** |
 
-Section exports respect the location filter. **Export All** ignores it and uses the Mapped/Raw toggles instead.
+Section and directory exports respect the [source filter](usage.md#filter-and-group-files), and so does **Export All**. Turn the filter off to export everything. Request [filters](network.md#filters) in the Network list apply only to request exports.
 
-Edits made in the editor are used by Copy and Export. See [editing](editor.md).
+To format exported files with your [Code Formatting](settings.md#code-formatting) style, turn on [Pretty-format files on export](settings.md#pretty-format-files-on-export). Edits made in the [editor](editor.md) are used by Copy and Export.
 
 ## Request snapshots
 

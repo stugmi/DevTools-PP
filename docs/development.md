@@ -24,7 +24,7 @@ The build creates a clean unpacked extension, copies local Monaco runtime assets
 | `bun run test`         | Run the existing tests                          |
 | `bun run check`        | Run TypeScript, lint, formatting, and build     |
 
-Python replay integration tests execute generated snippets against a local server using real `requests` and `httpx` clients. They skip with a reason when a Python interpreter or the relevant library is unavailable. Set `PYTHON_REQUEST_CODE_PYTHON` to select an interpreter. Native cURL/cmd coverage runs on Windows.
+Python replay integration tests execute generated snippets against a local server using real `requests` and `httpx` clients. They skip with a reason when a Python interpreter or the relevant library is unavailable. Set `PYTHON_REQUEST_CODE_PYTHON` to select an interpreter. Native cURL (cmd) coverage runs on Windows; cURL (bash) coverage runs when `bash` and `curl` are available (Git Bash on Windows) and skips otherwise.
 
 ## Toolchain configuration
 
