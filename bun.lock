@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "source-exporter",
+      "name": "devtools-plus-plus",
       "dependencies": {
         "js-beautify": "^1.15.4",
         "jszip": "3.10.1",

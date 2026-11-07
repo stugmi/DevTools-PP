@@ -60,7 +60,7 @@ async function processScripts(scripts, resourceMap, gen, live) {
       try {
         await processScript(script, resourceMap, gen);
       } catch (error) {
-        console.warn(`Source Exporter: scanning ${script.url} failed`, error);
+        console.warn(`DevTools++: scanning ${script.url} failed`, error);
         if (gen === state.scanGeneration) scriptScanFailed(script.url);
       }
     }
@@ -236,7 +236,7 @@ network.onRequestFinished.addListener((request) => {
 
 // -- Panel visibility --
 // The panel page can exist while another DevTools tab is focused. Stay passive until
-// DevTools reports that Source Exporter is visible.
+// DevTools reports that DevTools++ is visible.
 
 // Returning to the panel only rescans, keeping tabs and edits. onNavigated is ignored while
 // hidden, so a page that reloaded or navigated meanwhile is detected here instead.

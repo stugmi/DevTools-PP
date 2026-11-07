@@ -1,4 +1,4 @@
-# Source Exporter
+# DevTools++
 
 An alternative source and network workspace inside Chrome DevTools for debugging,
 reverse engineering, and inspecting web pages.
@@ -7,7 +7,7 @@ I built it because Chromium's DevTools was missing features I'd wanted for a whi
 starting with exporting files detected through source maps. I've tried to keep the
 familiar DevTools behavior first, then add new features and quality-of-life improvements.
 
-![Files workspace: GitHub's source-mapped Ago.tsx, reconstructed from production bundles, open in the editor](docs/images/files-editor.png)
+![DevTools++ reconstructing a simulated shop's ProductCard.tsx from a source map, open in the editor](docs/images/files-editor.png)
 
 ## Features
 
@@ -34,7 +34,7 @@ familiar DevTools behavior first, then add new features and quality-of-life impr
 
 ## Install
 
-1. Download and unzip [the latest build](https://github.com/stugmi/SourceExporter/releases/download/latest/source-exporter.zip).
+1. Download and unzip [the latest build](https://github.com/stugmi/SourceExporter/releases/download/latest/devtools-plus-plus.zip).
 2. Open `chrome://extensions` and enable **Developer mode**.
 3. Click **Load unpacked** and select the extracted folder.
 
@@ -42,7 +42,7 @@ To build from source, see [development](docs/development.md).
 
 ## Quick start
 
-1. Open DevTools on the page you want to inspect and select **Source Exporter**.
+1. Open DevTools on the page you want to inspect and select **DevTools++**.
 2. Reload the page if its scripts loaded before the panel was open.
 3. Select a file or request to inspect it, then use **Export All** to save the capture.
 

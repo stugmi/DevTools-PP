@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Source Exporter",
-  "version": "1.5.1",
+  "name": "DevTools++",
+  "version": "1.5.2",
   "description": "Export reconstructed source files from DevTools source maps as ZIP or TAR archives",
   "host_permissions": ["<all_urls>"],
   "permissions": ["clipboardWrite"],
   "devtools_page": "devtools/devtools.html",
   "action": {
     "default_popup": "panel/popup.html",
-    "default_title": "Source Exporter"
+    "default_title": "DevTools++"
   },
   "icons": {
     "16": "icons/icon16.png",

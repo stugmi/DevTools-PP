@@ -101,7 +101,7 @@ async function exportItems(items, archiveName) {
           } else {
             prettyFailed++;
             const header = commentHeader(lang, [
-              "Source Exporter: pretty-format failed for this file.",
+              "DevTools++: pretty-format failed for this file.",
               "Reason: " + r.reason,
               "Falling back to original (un-formatted) content.",
             ]);
@@ -154,7 +154,7 @@ function makePlaceholder(path, entry) {
       ? "Failed to fetch original content."
       : "Original content was not available (no embedded source content and no successful fetch).";
   return [
-    "// Source Exporter placeholder",
+    "// DevTools++ placeholder",
     `// Path: ${path}`,
     `// URL:  ${url}`,
     `// ${reason}`,

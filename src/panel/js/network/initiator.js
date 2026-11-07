@@ -181,7 +181,7 @@ const RequestInitiator = (() => {
         resolveOpen(
           response?.isError
             ? `DevTools could not open ${target.url}.`
-            : `Opened ${target.url} in DevTools (outside Source Exporter).`
+            : `Opened ${target.url} in DevTools (outside DevTools++).`
         );
       const line = target.line ?? 0;
       const column = target.column ?? 0;
@@ -199,7 +199,7 @@ const RequestInitiator = (() => {
     return withTimeout(
       opened,
       DEVTOOLS_OPEN_TIMEOUT_MS,
-      `Asked DevTools to open ${target.url} (outside Source Exporter).`
+      `Asked DevTools to open ${target.url} (outside DevTools++).`
     );
   }
 

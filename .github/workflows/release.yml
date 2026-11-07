@@ -31,10 +31,10 @@ jobs:
           CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
         run: |
           mkdir out
-          (cd dist && zip -qr ../out/source-exporter.zip .)
+          (cd dist && zip -qr ../out/devtools-plus-plus.zip .)
           if [ -n "$CRX_PRIVATE_KEY" ]; then
             printf '%s\n' "$CRX_PRIVATE_KEY" > "$RUNNER_TEMP/key.pem"
-            bun x --bun --no-install crx3 -p "$RUNNER_TEMP/key.pem" -o out/source-exporter.crx dist
+            bun x --bun --no-install crx3 -p "$RUNNER_TEMP/key.pem" -o out/devtools-plus-plus.crx dist
             rm "$RUNNER_TEMP/key.pem"
           else
             echo "::warning::CRX_PRIVATE_KEY secret not set; publishing zip only"
@@ -54,7 +54,7 @@ jobs:
             gh release edit "v$version" --notes-file "$notes"
           else
             gh release create "v$version" out/* --target "$GITHUB_SHA" \
-              --title "Source Exporter $version" --notes-file "$notes" --latest=false
+              --title "DevTools++ $version" --notes-file "$notes" --latest=false
           fi
 
           short=${GITHUB_SHA::7}

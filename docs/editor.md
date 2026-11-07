@@ -18,11 +18,11 @@ The left sidebar, bottom panel, and right sidebar can be toggled independently. 
 
 Choose a [color theme](settings.md#color-theme) in **Settings > Appearance**: VS Dark (default), DevTools Dark, Dark (Navy / Charcoal), VS Light, Light, and high contrast dark or light. The theme applies to the whole panel and the editor.
 
-![Dark (Navy / Charcoal) theme with GitHub's source-mapped Ago.tsx open](images/files-editor-navy.png)
+![Dark (Navy / Charcoal) theme with the simulated shop's source-mapped ProductCard.tsx open](images/files-editor-navy.png)
 
 ## Keyboard shortcuts
 
-Shortcuts apply while the Source Exporter panel has focus. Definitions live in [`keybinds.js`](../src/panel/js/core/keybinds.js).
+Shortcuts apply while the DevTools++ panel has focus. Definitions live in [`keybinds.js`](../src/panel/js/core/keybinds.js).
 
 | Keys                 | Action                                                                           |
 | -------------------- | -------------------------------------------------------------------------------- |

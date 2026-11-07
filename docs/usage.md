@@ -1,6 +1,6 @@
 # Capture and filtering
 
-Source Exporter collects files and completed requests from the inspected page while its DevTools panel is visible.
+DevTools++ collects files and completed requests from the inspected page while its DevTools panel is visible.
 
 ## Source groups
 
@@ -16,11 +16,11 @@ Enable **Collect navigations** to retain files while the inspected page reloads 
 
 Turning it off keeps the current collection; the next navigation returns to single-page capture. The refresh button always starts a fresh collection.
 
-Capture pauses while another DevTools tab is active. Reload the page with Source Exporter visible if scripts loaded before DevTools opened or while the panel was hidden.
+Capture pauses while another DevTools tab is active. Reload the page with DevTools++ visible if scripts loaded before DevTools opened or while the panel was hidden.
 
 ## Pause watching
 
-The dot at the left of the status bar shows whether Source Exporter is watching the page: green while it captures new files, requests, and navigations, hollow while paused. Click it, or right-click it and choose **Pause watching** or **Resume watching**, to toggle. Pausing keeps everything already captured. Resuming catches up with the page, as returning to the panel does, and the refresh button also resumes. The status text keeps the counts current without switching to scan messages; errors and finished [exports](exporting.md) replace it for a few seconds.
+The dot at the left of the status bar shows whether DevTools++ is watching the page: green while it captures new files, requests, and navigations, hollow while paused. Click it, or right-click it and choose **Pause watching** or **Resume watching**, to toggle. Pausing keeps everything already captured. Resuming catches up with the page, as returning to the panel does, and the refresh button also resumes. The status text keeps the counts current without switching to scan messages; errors and finished [exports](exporting.md) replace it for a few seconds.
 
 ## Filter and group files
 

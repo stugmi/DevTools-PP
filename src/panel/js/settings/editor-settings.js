@@ -1,6 +1,6 @@
 "use strict";
 
-// Settings window: Source Exporter's own settings (AppSettings) followed by every Monaco editor
+// Settings window: DevTools++'s own settings (AppSettings) followed by every Monaco editor
 // option, generated from Monaco's EditorOptions schema. Also owns the floating window and the
 // Monaco JSON overrides view. fontFamily, fontSize and smoothScrolling are left out of the
 // Monaco list because the Appearance section owns them.
@@ -136,7 +136,7 @@ window.EditorSettingsPanel = (() => {
     try {
       editorRef.updateOptions({ [entry.optionName]: setPath(entry.path, value) });
     } catch (error) {
-      console.warn(`Source Exporter: could not apply ${entry.dottedKey}`, error);
+      console.warn(`DevTools++: could not apply ${entry.dottedKey}`, error);
     }
   }
 
@@ -428,7 +428,7 @@ window.EditorSettingsPanel = (() => {
       section.appendChild(heading);
       for (const def of defs) section.appendChild(renderRow(def));
       body.appendChild(section);
-      navItems.push({ id: section.id, title, group: "Source Exporter" });
+      navItems.push({ id: section.id, title, group: "DevTools++" });
       shown += defs.length;
     }
 
@@ -541,10 +541,10 @@ window.EditorSettingsPanel = (() => {
   async function ensureJsonEditor() {
     if (jsonEditor || !monacoRef) return;
     const monaco = monacoRef;
-    const uri = monaco.Uri.parse("inmemory://source-exporter/editor-settings.json");
+    const uri = monaco.Uri.parse("inmemory://devtools-plus-plus/editor-settings.json");
     jsonSchemas = [
       {
-        uri: "http://source-exporter/editor-settings-schema.json",
+        uri: "http://devtools-plus-plus/editor-settings-schema.json",
         fileMatch: [uri.toString()],
         schema: jsonSchemaFromEntries(),
       },

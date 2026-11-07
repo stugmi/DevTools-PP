@@ -1,6 +1,6 @@
 # How it works
 
-Source Exporter passively reconstructs source-map content without attaching a debugger.
+DevTools++ passively reconstructs source-map content without attaching a debugger.
 
 ## Capture and permissions
 

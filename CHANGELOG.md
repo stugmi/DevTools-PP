@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.2
+
+### Changes
+
+- Rename Source Exporter to **DevTools++** in the extension, panel, popup, settings, and documentation. Release downloads use `devtools-plus-plus.zip` and `devtools-plus-plus.crx`.
+
 ## 1.5.1
 
 ### Bug Fixes
