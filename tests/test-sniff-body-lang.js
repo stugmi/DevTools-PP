@@ -1,5 +1,5 @@
 // Table-driven tests for sniffBodyLang (src/panel/js/network/request-body.js).
-// Run with `node --test scripts/test-sniff-body-lang.js`. The panel script is a classic script
+// Run with `node --test tests/test-sniff-body-lang.js`. The panel script is a classic script
 // with globals, so it is evaluated in a vm context with the few helpers it needs stubbed.
 
 const test = require("node:test");

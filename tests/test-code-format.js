@@ -1,6 +1,6 @@
 // Behavioral tests for the code formatting style: how the stored options become js-beautify
 // options, and what the beautifier produces for already-formatted and minified code.
-// Run with `bun test scripts/test-code-format.js`.
+// Run with `bun test tests/test-code-format.js`.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");

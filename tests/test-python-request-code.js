@@ -1,5 +1,5 @@
 // Tests Python replay syntax, formatting, and wire bytes with real requests/httpx clients.
-// Run with `bun test scripts/test-python-request-code.js`. Native cases skip if unavailable;
+// Run with `bun test tests/test-python-request-code.js`. Native cases skip if unavailable;
 // set PYTHON_REQUEST_CODE_PYTHON to select an interpreter.
 
 const test = require("node:test");

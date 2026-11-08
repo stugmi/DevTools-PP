@@ -66,7 +66,7 @@
 ### Developer Information
 
 - Keep release notes in a single root `CHANGELOG.md`; `scripts/changelog-notes.js` extracts one version's notes for GitHub releases.
-- Add `lib/code-format.js` (formatting style to js-beautify options), `lib/source-filter.js` (rule language and matcher), and `core/source-filter-state.js` (filter state and explorer grouping), with tests in `scripts/test-code-format.js` and `scripts/test-source-filter.js`.
+- Add `lib/code-format.js` (formatting style to js-beautify options), `lib/source-filter.js` (rule language and matcher), and `core/source-filter-state.js` (filter state and explorer grouping), with tests in `tests/test-code-format.js` and `tests/test-source-filter.js`.
 - Add a [Settings reference][settings] and screenshots to the README and guides under `docs/`.
 
 [source-filter]: https://github.com/stugmi/SourceExporter/blob/main/docs/usage.md#filter-and-group-files

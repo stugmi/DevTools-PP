@@ -1,5 +1,5 @@
 // Behavioral tests for the request list selection owner (src/panel/js/core/request-selection.js).
-// Run with `bun test scripts/test-request-selection.js`. Each test loads the real source into a
+// Run with `bun test tests/test-request-selection.js`. Each test loads the real source into a
 // fresh vm context with its own state object.
 
 const test = require("node:test");

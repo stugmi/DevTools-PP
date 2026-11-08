@@ -1,5 +1,5 @@
 // Behavioral tests for the byte-first body extraction helper (src/panel/js/lib/hexdump.js).
-// Run with `node --test scripts/test-hexdump.js`. The helper is a classic script that defines a
+// Run with `node --test tests/test-hexdump.js`. The helper is a classic script that defines a
 // top-level `HexDump` const, so it is evaluated in a vm context (no DOM needed).
 
 const test = require("node:test");

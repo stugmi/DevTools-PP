@@ -1,5 +1,5 @@
 // Behavioral tests for the source filter pattern language and file type grouping.
-// Run with `bun test scripts/test-source-filter.js`.
+// Run with `bun test tests/test-source-filter.js`.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");

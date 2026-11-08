@@ -1,5 +1,5 @@
 // Behavioral tests for the pure hex inspector (src/panel/js/lib/hex-inspector.js).
-// Run with `node --test scripts/test-hex-inspector.js`. Classic script defining a top-level
+// Run with `node --test tests/test-hex-inspector.js`. Classic script defining a top-level
 // `HexInspector` const, evaluated in a vm context (no DOM needed).
 
 const test = require("node:test");

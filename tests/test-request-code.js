@@ -1,5 +1,5 @@
 // Behavioral tests for RequestCode JS generators (src/panel/js/lib/request-code.js).
-// Run with `bun test scripts/test-request-code.js`. JS output is evaluated in a vm;
+// Run with `bun test tests/test-request-code.js`. JS output is evaluated in a vm;
 // a Windows-only loopback test also exercises native cURL request bytes.
 
 const test = require("node:test");

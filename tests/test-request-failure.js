@@ -1,5 +1,5 @@
 // Behavioral tests for failed/blocked request classification (request-capture.js).
-// Run with `bun test scripts/test-request-failure.js`. Loads the real source into a vm context.
+// Run with `bun test tests/test-request-failure.js`. Loads the real source into a vm context.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");

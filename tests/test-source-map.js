@@ -1,5 +1,5 @@
 // Behavioral tests for SourceMapLookup (src/panel/js/lib/source-map.js): generated -> original
-// position lookup over real base64 VLQ v3 mappings. Run with `bun test scripts/test-source-map.js`.
+// position lookup over real base64 VLQ v3 mappings. Run with `bun test tests/test-source-map.js`.
 // The panel script is a classic script, so it is evaluated in a vm context.
 
 const test = require("node:test");

@@ -1,6 +1,6 @@
 // Behavioral tests for JSON payload handling: a single JSON value or newline-delimited JSON
 // records (the Datadog browser SDK's RUM batch framing) through detection, the Source pretty view
-// and the Parsed value. Run with `bun test scripts/test-json-payload.js`.
+// and the Parsed value. Run with `bun test tests/test-json-payload.js`.
 // The panel scripts are classic scripts sharing one global scope, so the real ones are loaded
 // into one vm context in page order.
 
