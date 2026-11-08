@@ -318,6 +318,15 @@
           </div>
         </div>
         <button
+          id="request-hide-blocked"
+          type="button"
+          class="request-hide-blocked"
+          aria-pressed="false"
+          title="Hide requests blocked by the browser or an extension"
+        >
+          Hide blocked
+        </button>
+        <button
           id="request-domain-button"
           type="button"
           class="request-domain-button"
@@ -494,6 +503,14 @@
                   data-sort-key="name"
                 >
                   Name
+                </button>
+                <button
+                  type="button"
+                  role="columnheader"
+                  class="network-col network-col-method"
+                  data-sort-key="method"
+                >
+                  Method
                 </button>
                 <button
                   type="button"
@@ -867,6 +884,13 @@
                     <div id="request-response-tree" class="json-tree-host" hidden></div>
                     <div id="request-response-viewer" class="request-viewer-host"></div>
                     <div id="request-response-hex" class="hexv-host" hidden></div>
+                    <iframe
+                      id="request-response-image"
+                      class="request-preview-frame"
+                      title="Response image"
+                      sandbox=""
+                      hidden
+                    ></iframe>
                   </div>
                   <div
                     id="request-detail-panel-initiator"
@@ -1236,6 +1260,8 @@
     <script src="js/lib/source-filter.js"></script>
     <script src="js/lib/hexdump.js"></script>
     <script src="js/lib/hex-inspector.js"></script>
+    <script src="js/lib/network-columns.js"></script>
+    <script src="js/lib/image-type.js"></script>
     <script src="js/editor/monaco-loader.js"></script>
     <script src="js/editor/editor.js"></script>
     <script src="js/settings/editor-settings.js"></script>
@@ -1253,6 +1279,7 @@
     <script src="js/editor/request-viewer.js"></script>
     <script src="js/network/cookies.js"></script>
     <script src="js/network/network-table.js"></script>
+    <script src="js/network/column-layout.js"></script>
     <script src="js/network/domain-filter.js"></script>
     <script src="js/network/request-body.js"></script>
     <script src="js/network/hex-viewer.js"></script>

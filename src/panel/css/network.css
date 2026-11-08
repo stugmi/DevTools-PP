@@ -18,11 +18,56 @@
   container-type: inline-size;
 }
 
+/* Tracks come from the stored column layout (js/network/column-layout.js); the fallback is the
+   default layout. Hidden columns are display:none, so the visible cells fill the tracks in order. */
 .network-row-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64px 64px 160px 68px 76px 92px;
+  grid-template-columns: var(
+    --network-cols,
+    minmax(120px, 1fr) 64px 64px 64px 160px 68px 76px 92px
+  );
   align-items: center;
   gap: 10px;
+}
+
+/* Header and rows share one minimum width, so a narrow panel scrolls sideways together. */
+#network-table-header,
+.network-row {
+  min-width: var(--network-min-width, 0);
+}
+
+/* Column order: header and cells take their position from --network-order-<id>, set by
+   js/network/column-layout.js. The fallbacks are the default order. */
+:is(.network-col-name, .network-cell-name) {
+  order: var(--network-order-name, 0);
+}
+
+:is(.network-col-method, .network-cell-method) {
+  order: var(--network-order-method, 1);
+}
+
+:is(.network-col-status, .network-cell-status) {
+  order: var(--network-order-status, 2);
+}
+
+:is(.network-col-type, .network-cell-type) {
+  order: var(--network-order-type, 3);
+}
+
+:is(.network-col-domain, .network-cell-domain) {
+  order: var(--network-order-domain, 4);
+}
+
+:is(.network-col-size, .network-cell-size) {
+  order: var(--network-order-size, 5);
+}
+
+:is(.network-col-time, .network-cell-time) {
+  order: var(--network-order-time, 6);
+}
+
+:is(.network-col-timestamp, .network-cell-timestamp) {
+  order: var(--network-order-timestamp, 7);
 }
 
 #network-table-header {
@@ -36,6 +81,8 @@
 }
 
 #network-table-header .network-col {
+  position: relative;
+  overflow: visible;
   border: 0;
   background: transparent;
   padding: 0;
@@ -44,6 +91,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -62,6 +110,71 @@
 
 #network-table-header .network-col.sorted.sort-asc::after {
   content: "▴";
+}
+
+/* Drag target on a header's right edge, centered in the gap before the next column. */
+.network-col-resize {
+  position: absolute;
+  top: -6px;
+  right: -9px;
+  bottom: -6px;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.network-col-resize::after {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 4px;
+  width: 1px;
+  background: var(--border);
+  content: "";
+}
+
+.network-col-resize:hover::after,
+#network-table-header.resizing .network-col-resize::after {
+  width: 2px;
+  left: 3px;
+  background: var(--accent);
+}
+
+#network-table-header.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* Moving a column: the dragged header dims and the drop edge shows where it will land. */
+#network-table-header.moving {
+  cursor: grabbing;
+  user-select: none;
+}
+
+#network-table-header.moving .network-col {
+  cursor: grabbing;
+}
+
+#network-table-header .network-col.drag-source {
+  opacity: 0.45;
+}
+
+#network-table-header .network-col.drop-before::before,
+#network-table-header .network-col.drop-after::before {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 2px;
+  background: var(--accent);
+  content: "";
+}
+
+#network-table-header .network-col.drop-before::before {
+  left: -6px;
+}
+
+#network-table-header .network-col.drop-after::before {
+  right: -6px;
 }
 
 #network-empty-state {
@@ -97,6 +210,7 @@
 /* Failed or blocked requests: red text in every cell, kept when selected (the selected
    background only tints, so the red stays readable) and on focused rows. */
 .network-row.failed .network-cell-name > *,
+.network-row.failed .network-cell-method,
 .network-row.failed .network-cell-status,
 .network-row.failed .network-cell-type,
 .network-row.failed .network-cell-type[data-type],
@@ -115,9 +229,11 @@
 }
 
 .network-cell-method {
-  flex-shrink: 0;
+  overflow: hidden;
   color: var(--method);
   font: 600 var(--fs-xs) var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .network-cell-url {
@@ -204,16 +320,14 @@
   white-space: nowrap;
 }
 
-/* Drop the least useful columns when the view is narrow. */
-@container (max-width: 680px) {
-  .network-row-grid {
-    grid-template-columns: minmax(0, 1fr) 56px 56px 68px 72px;
-  }
-
-  .network-col-domain,
-  .network-cell-domain,
-  .network-col-timestamp,
-  .network-cell-timestamp {
-    display: none;
-  }
+/* Hidden columns (data-hidden-columns is a list of ids set by column-layout.js). */
+#network-table[data-hidden-columns~="method"] :is(.network-col-method, .network-cell-method),
+#network-table[data-hidden-columns~="status"] :is(.network-col-status, .network-cell-status),
+#network-table[data-hidden-columns~="type"] :is(.network-col-type, .network-cell-type),
+#network-table[data-hidden-columns~="domain"] :is(.network-col-domain, .network-cell-domain),
+#network-table[data-hidden-columns~="size"] :is(.network-col-size, .network-cell-size),
+#network-table[data-hidden-columns~="time"] :is(.network-col-time, .network-cell-time),
+#network-table[data-hidden-columns~="timestamp"]
+  :is(.network-col-timestamp, .network-cell-timestamp) {
+  display: none;
 }

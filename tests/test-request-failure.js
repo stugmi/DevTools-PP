@@ -11,8 +11,8 @@ const source = fs.readFileSync(
   path.join(__dirname, "..", "src", "panel", "js", "capture", "request-capture.js"),
   "utf8"
 );
-const { requestFailureFromHAR, requestStatusView } = vm.runInContext(
-  `${source}\n({ requestFailureFromHAR, requestStatusView });`,
+const { requestFailureFromHAR, requestStatusView, requestIsBlocked } = vm.runInContext(
+  `${source}\n({ requestFailureFromHAR, requestStatusView, requestIsBlocked });`,
   vm.createContext({})
 );
 
@@ -84,4 +84,34 @@ test("failure snapshot is plain data independent of the live entry", () => {
   const failure = requestFailureFromHAR(entry);
   entry.response = null; // the live request is released
   assert.deepEqual({ ...failure }, { error: "net::ERR_BLOCKED_BY_RESPONSE", blocked: true });
+});
+
+// What the "Hide blocked" filter removes, built the way the capture builds a record.
+const requestEntry = (harEntry) => {
+  const failure = requestFailureFromHAR(harEntry);
+  return {
+    _record: {
+      response: { status: harEntry.response?.status ?? null, ...(failure ? { failure } : {}) },
+    },
+  };
+};
+
+test("Hide blocked matches requests cancelled by the client or a response policy only", () => {
+  for (const error of ["net::ERR_BLOCKED_BY_CLIENT", "net::ERR_BLOCKED_BY_RESPONSE"]) {
+    assert.equal(requestIsBlocked(requestEntry({ response: { status: 0, _error: error } })), true);
+  }
+  for (const error of ["net::ERR_ABORTED", "net::ERR_CONNECTION_REFUSED", "net::ERR_FAILED"]) {
+    assert.equal(requestIsBlocked(requestEntry({ response: { status: 0, _error: error } })), false);
+  }
+});
+
+test("Hide blocked keeps successful, HTTP error and pending requests", () => {
+  for (const harEntry of [
+    { response: { status: 200 } },
+    { response: { status: 403 } },
+    { response: { status: 500, _error: null } },
+    { response: { status: 0 } },
+  ]) {
+    assert.equal(requestIsBlocked(requestEntry(harEntry)), false, JSON.stringify(harEntry));
+  }
 });

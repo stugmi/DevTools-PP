@@ -274,14 +274,19 @@ function migrateRawTabToRequest(url, requestPath) {
   return wasSelected;
 }
 
-function requestTypeFor(entry) {
-  const record = entry?._record;
-  const resourceType = (
+// Chrome's initiator type for the request ("xhr", "fetch", "script", ...), lower case.
+function requestResourceType(entry) {
+  return (
     entry?._requestType ||
-    record?.resourceType ||
+    entry?._record?.resourceType ||
     entry?._request?._resourceType ||
     ""
   ).toLowerCase();
+}
+
+function requestTypeFor(entry) {
+  const record = entry?._record;
+  const resourceType = requestResourceType(entry);
   const mimeType = (
     record?.response?.bodyMimeType ||
     record?.request?.bodyMimeType ||
@@ -312,6 +317,24 @@ function requestTypeFor(entry) {
   }
   if (isXhrLike) return "xhr";
   return "other";
+}
+
+// The Fetch/XHR button follows how the request was made, like Chrome's own Network panel. The
+// Type column shows what came back, so a fetch call answered with JSON or HTML reads "json" or
+// "doc" there yet still belongs under Fetch/XHR. Every other button matches the Type column.
+function requestMatchesTypeFilter(entry, kind, filter) {
+  if (filter === "xhr") {
+    const resourceType = requestResourceType(entry);
+    return resourceType === "xhr" || resourceType === "fetch";
+  }
+  return kind === filter;
+}
+
+// True for a request the browser or an extension (an ad or tracker blocker) cancelled before it
+// was sent: the "(blocked)" rows. Other failures (refused, aborted, DNS) are not blocked.
+// Cached on the entry, whose failure never changes after capture.
+function requestIsBlocked(entry) {
+  return (entry._blocked ??= requestStatusView(entry._record).kind === "blocked");
 }
 
 function canLoadResponseBody(entry) {

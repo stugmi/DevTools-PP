@@ -394,7 +394,8 @@
 
 .kv-row {
   display: grid;
-  grid-template-columns: calc(var(--kv-key-chars, 14) * 1ch + 1ch) minmax(0, 1fr);
+  /* The extra half character absorbs sub-pixel rounding, so the longest key never wraps its colon. */
+  grid-template-columns: calc(var(--kv-key-chars, 14) * 1ch + 1.5ch) minmax(0, 1fr);
   column-gap: 2.5ch;
   align-items: start;
   padding: 1px 10px 1px 22px;
@@ -413,6 +414,10 @@
 .kv-colon {
   color: var(--text-dim);
   font-weight: 400;
+}
+
+.kv-key-tail {
+  white-space: nowrap;
 }
 
 .kv-value {

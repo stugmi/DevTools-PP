@@ -33,6 +33,7 @@ function copyFormatLabel({ value, label }) {
 
 function contextMenuActions(target) {
   const { type, path, section, group } = target;
+  if (type === "columns") return networkColumnActions();
   if (type === "capture") {
     return [
       {
@@ -214,6 +215,17 @@ function contextActionElement(action) {
   item.setAttribute("role", "menuitem");
   item.tabIndex = -1;
   item.textContent = action.label;
+  // Checkable entries (column toggles) show their state and may keep the menu open.
+  const syncChecked = () => {
+    if (!action.isChecked) return;
+    const checked = action.isChecked();
+    item.setAttribute("aria-checked", String(checked));
+    item.classList.toggle("checked", checked);
+  };
+  if (action.isChecked) {
+    item.setAttribute("role", "menuitemcheckbox");
+    syncChecked();
+  }
   if (action.children) {
     item.classList.add("ctx-submenu-trigger");
     item.setAttribute("aria-haspopup", "menu");
@@ -240,9 +252,10 @@ function contextActionElement(action) {
     });
     item.addEventListener("click", (event) => {
       event.stopPropagation();
-      hideContextMenu();
+      if (!action.keepOpen) hideContextMenu();
       Promise.resolve()
         .then(action.run)
+        .then(syncChecked)
         .catch((error) => setStatus(error.message, { error: true }));
     });
   }
@@ -282,9 +295,11 @@ function showContextMenu(x, y, targetType) {
     "aria-label",
     targetType === "capture"
       ? "Capture actions"
-      : target.section === "requests"
-        ? "Request actions"
-        : "File actions"
+      : targetType === "columns"
+        ? "Table columns"
+        : target.section === "requests"
+          ? "Request actions"
+          : "File actions"
   );
   el.contextMenu.style.display = "block";
   positionContextMenu(el.contextMenu, x, y);

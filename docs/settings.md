@@ -171,4 +171,4 @@ Turn off to list each group's files by full path instead of as a folder tree. De
 
 ## Editor (Monaco)
 
-Every option of the Monaco code editor, generated from Monaco's own schema and grouped by category, such as Sticky Scroll, minimap, and word wrap. Font family, font size, and smooth scrolling are under [Appearance](#appearance). Boolean editor options can also be toggled from the command palette. **{ } Editor JSON** shows the overrides as JSON for bulk editing.
+Every option of the Monaco code editor, generated from Monaco's own schema and grouped by category, such as Sticky Scroll, minimap, and word wrap. Font family, font size, and smooth scrolling are under [Appearance](#appearance). Boolean editor options can also be toggled from the command palette. **{ } Editor JSON** shows the overrides as JSON for bulk editing. The read-only request and response viewers in the Network detail follow the **Sticky Scroll** options; other Monaco options apply to the file editor only.

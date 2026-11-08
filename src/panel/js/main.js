@@ -115,6 +115,24 @@ el.requestTypeFilters.addEventListener("click", (event) => {
   syncTypeFilterButtons();
   refreshNetwork();
 });
+
+// "Hide blocked" is remembered, and Clear leaves it alone: it is a standing preference for noisy
+// trackers, not a search narrowing. Its pressed state always shows whether it is on.
+function syncHideBlockedButton() {
+  const on = state.requestFilters.hideBlocked;
+  el.requestHideBlocked.classList.toggle("active", on);
+  el.requestHideBlocked.setAttribute("aria-pressed", String(on));
+}
+
+el.requestHideBlocked.addEventListener("click", () => {
+  state.requestFilters.hideBlocked = !state.requestFilters.hideBlocked;
+  prefs.hideBlockedRequests = state.requestFilters.hideBlocked;
+  savePref("hideBlockedRequests", prefs.hideBlockedRequests);
+  syncHideBlockedButton();
+  refreshNetwork();
+});
+syncHideBlockedButton();
+
 el.requestFilterClear.addEventListener("click", () => {
   queueRequestFilters.cancel();
   state.requestFilters.domain = "";
@@ -138,7 +156,8 @@ el.networkTableHeader.addEventListener("click", (event) => {
     state.requestSort.dir = state.requestSort.dir === "asc" ? "desc" : "asc";
   } else {
     state.requestSort.key = key;
-    state.requestSort.dir = key === "name" || key === "domain" || key === "type" ? "asc" : "desc";
+    const textColumn = ["name", "method", "domain", "type"].includes(key);
+    state.requestSort.dir = textColumn ? "asc" : "desc";
   }
   renderNetworkTable();
 });

@@ -8,6 +8,10 @@ Inspect captured requests in a newest-first list with a separate detail view.
 
 The filter bar holds the text filter, **Method**, resource **Type** pills, and minimum or maximum **Duration**. **Clear** resets all of them, including the domain.
 
+**Fetch/XHR** lists every request made with `fetch` or `XMLHttpRequest`, like Chrome's own Network panel, whatever it returned. The **Type** column still shows what came back, so a fetch call that returned JSON or HTML reads `JSON` or `DOC` there and also appears under the **JSON** or **Doc** pill. The other pills match the **Type** column.
+
+**Hide blocked** removes requests that were cancelled by the browser or an extension, such as an ad or tracker blocker (the `(blocked)` rows). Other failures stay visible. It stays on until you turn it off, including after reopening DevTools, and **Clear** does not reset it; while it is on the button is highlighted.
+
 **Domains** sits at the right end of the bar because it is used less often. It opens a popover with a search box and a list of captured domains with request counts; choose one, or **All domains** to remove the filter. Use the arrow keys and Enter in the list, Escape to close it. While a domain is selected, the button turns to the accent color and a chip beside it (for example `api.github.com x`) names the domain and removes the filter in one click. A selected domain stays listed even when no captured request uses it.
 
 ## List and selection
@@ -19,6 +23,12 @@ Failed and blocked requests appear in red, with the captured error available on 
 Click selects one request and opens its detail. Ctrl/Cmd-click toggles a request and Shift-click selects the range from the last anchor, in the visible (filtered, sorted) order. Selection for batch actions is independent of the detail selection: the detail view keeps showing the request you opened.
 
 Right-click a request for **Open in new tab**, **Show initiator** (see [Initiator](#initiator)), **Filter to this domain**, **Copy address**, or **Copy as...** replay code (see [Copy as code](#copy-as-code)). When several requests are selected, actions that support batches apply to all of them in visible order, joined into one result.
+
+## Columns
+
+Right-click the column header or any empty part of the list to open the column menu. Tick or untick **Method**, **Status**, **Type**, **Domain**, **Size**, **Time**, and **Timestamp** to show or hide them; the menu stays open so several can be changed at once. **Name** always stays. **Reset columns** restores the default set, order and widths.
+
+Drag a column header sideways to move it; a marker shows where it will land. A click without dragging still sorts. Drag the right edge of a column header to resize it, and double-click that edge to restore the column's default width. When the columns no longer fit, the list scrolls sideways. Hidden columns, widths and the column order are remembered between sessions. Hiding the column the list is sorted by returns it to the default order.
 
 ## Copy as code
 
@@ -68,6 +78,7 @@ Selecting a request opens **Headers**, **Payload**, **Preview**, **Response**, *
 
 - **Raw** switches headers between parsed and wire-oriented text.
 - **Source** shows highlighted, optionally pretty-formatted body text. Choose the body language, including **Hex**, from the footer dropdown; **Auto** picks Hex for binary bodies. When the body text is base64 (for example gRPC-web text mode), **Hex (Base64 decoded)** shows the decoded bytes.
+- **Images**: a response is recognized as an image from its bytes (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO) as well as its `Content-Type`, so an image sent as `application/octet-stream` or with a wrong type still gets a **Preview**. With **Auto**, **Response** shows the image itself; choose **Hex** in the footer dropdown for its bytes.
 - **Parsed** shows a collapsible JSON tree or HTML/XML document tree.
 - **Hex** shows an address column, a byte grid, and ASCII, with a data inspector and a selection status bar.
   - Click, drag, or Shift-click to select bytes; arrows, Page Up/Down, Home/End, and Ctrl+A also move or extend the selection.

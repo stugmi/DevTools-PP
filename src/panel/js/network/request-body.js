@@ -63,6 +63,33 @@ function isBase64Body(body) {
   );
 }
 
+// Raster image type of the response, or null: the type found in the leading bytes of a base64
+// (binary) body, which wins over a missing, generic or wrong Content-Type, else a declared image/*
+// type other than SVG (text, shown by Preview as markup).
+function responseImageMime(entry) {
+  const response = entry._record.response;
+  const raw = entry._rawResponseBody;
+  if (response.bodyEncoding === "base64" && typeof raw === "string") {
+    const sniffed = ImageType.sniffBase64(raw);
+    if (sniffed) return sniffed;
+  }
+  const declared = baseMime(response.bodyMimeType);
+  return declared.startsWith("image/") && declared !== "image/svg+xml" ? declared : null;
+}
+
+// True when Response shows the image itself: the language choice is Auto and the loaded body
+// is a base64 image. Choosing Hex still shows the bytes.
+function bodyShowsImage(entry, tab) {
+  if (tab !== "response") return false;
+  if ((requestBodyOverrides(entry).response ?? "auto") !== "auto") return false;
+  const { bodyEncoding } = entry._record.response;
+  return (
+    bodyEncoding === "base64" &&
+    typeof entry._rawResponseBody === "string" &&
+    responseImageMime(entry) !== null
+  );
+}
+
 // Content-based guess for when the MIME type says nothing useful (a custom type like
 // text/x-component, text/plain, or none). Returns { lang, json } where `lang` is null when
 // nothing is recognised so the caller can fall back to plain text, and `json` is the parsed
@@ -339,9 +366,10 @@ function bodyShowsHex(entry, tab) {
   return override === "auto" && HexDump.prefersHex(hexBodyFor(entry, tab).result);
 }
 
-// The view a tab actually shows: "hex", the parsed tree (when chosen and the body parses) or
-// the "source" text viewer.
+// The view a tab actually shows: "image" (a detected image), "hex", the parsed tree (when chosen
+// and the body parses) or the "source" text viewer.
 function bodyViewFor(entry, tab) {
+  if (bodyShowsImage(entry, tab)) return "image";
   if (bodyShowsHex(entry, tab)) return "hex";
   return bodyParsedState()[tab] && parsedBodyFor(entry, tab) ? "parsed" : "source";
 }

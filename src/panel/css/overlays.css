@@ -169,13 +169,15 @@ kbd {
   margin: 3px 0;
 }
 
-#view-menu .ctx-item {
+#view-menu .ctx-item,
+#context-menu .ctx-item[role="menuitemcheckbox"] {
   position: relative;
   padding-left: 28px;
   white-space: nowrap;
 }
 
-#view-menu .ctx-item.checked::before {
+#view-menu .ctx-item.checked::before,
+#context-menu .ctx-item.checked::before {
   position: absolute;
   left: 10px;
   content: "✓";

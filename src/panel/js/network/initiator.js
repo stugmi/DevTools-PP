@@ -258,8 +258,7 @@ const RequestInitiator = (() => {
     table.style.setProperty("--kv-key-chars", "10");
     for (const [name, value] of rows) {
       const row = node("div", "kv-row");
-      const key = node("span", "kv-key");
-      key.append(name, node("span", "kv-colon", ":"));
+      const key = kvKeyCell(name);
       const cell = node("span", "kv-value");
       cell.append(value);
       row.append(key, cell);

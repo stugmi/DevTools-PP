@@ -34,6 +34,8 @@ const PREF_KEYS = {
   sourceFilterExclude: "se.sourceFilterExclude",
   sourceGroupBy: "se.sourceGroupBy",
   sourceNestFolders: "se.sourceNestFolders",
+  networkColumns: "se.networkColumns",
+  hideBlockedRequests: "se.hideBlockedRequests",
 };
 
 // Theme key and default are repeated in core/theme-boot.js (se.editorTheme, vs-dark); keep in sync.
@@ -111,6 +113,10 @@ const prefs = {
   sourceGroupBy:
     ["auto", "domain", "type", "none"].find((v) => v === readPref("sourceGroupBy")) ?? "auto",
   sourceNestFolders: readPref("sourceNestFolders") !== "0",
+  // Request table columns: which are hidden and any widths the user dragged (lib/network-columns.js).
+  networkColumns: NetworkColumns.normalize(readPref("networkColumns")),
+  // Hide requests that were blocked (by the browser or an extension) from the request list.
+  hideBlockedRequests: readPref("hideBlockedRequests") === "1",
 };
 
 // The stored code formatting prefs as a CodeFormat style.
@@ -196,6 +202,7 @@ const state = {
     method: "",
     minDuration: "",
     maxDuration: "",
+    hideBlocked: prefs.hideBlockedRequests,
   },
   requestSort: { key: null, dir: "asc" },
   requestDetailTab: "headers",
@@ -279,6 +286,7 @@ const el = {
   requestDomainSearch: $("request-domain-search"),
   requestDomainList: $("request-domain-list"),
   requestTypeFilters: $("request-type-filters"),
+  requestHideBlocked: $("request-hide-blocked"),
   requestMethodFilter: $("request-method-filter"),
   requestTimeMin: $("request-time-min"),
   requestTimeMax: $("request-time-max"),

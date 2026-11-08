@@ -19,6 +19,11 @@ window.RequestViewer = (() => {
     };
   }
 
+  // Font plus the Monaco settings shared with the file editor (sticky scroll).
+  function sharedOptions() {
+    return { ...fontOptions(), ...window.EditorSettingsPanel?.viewerOptions() };
+  }
+
   function mount(containerEl) {
     let editor = null;
     let monacoRef = null;
@@ -50,7 +55,7 @@ window.RequestViewer = (() => {
         scrollBeyondLastLine: false,
         renderWhitespace: "selection",
         theme: prefs.editorTheme || "vs-dark",
-        ...fontOptions(),
+        ...sharedOptions(),
         stopRenderingLineAfter: -1,
         maxTokenizationLineLength: 200_000,
       });
@@ -73,7 +78,7 @@ window.RequestViewer = (() => {
       setContent,
       setWrap,
       applyPreferences() {
-        editor?.updateOptions(fontOptions());
+        editor?.updateOptions(sharedOptions());
       },
     };
     mounted.add(viewer);

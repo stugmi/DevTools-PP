@@ -60,7 +60,7 @@ function updateBodyViewToggle(entry, tab) {
   const toggle = document.getElementById("request-body-view-toggle");
   if (!toggle) return;
   const view = isBodyTab(tab) && !isBodyPlaceholder(entry, tab) ? bodyViewFor(entry, tab) : null;
-  toggle.hidden = !view || view === "hex" || !parsedBodyFor(entry, tab);
+  toggle.hidden = !view || view === "hex" || view === "image" || !parsedBodyFor(entry, tab);
   if (toggle.hidden) return;
   for (const button of toggle.querySelectorAll("button[data-body-view]")) {
     const active = button.dataset.bodyView === view;
@@ -140,6 +140,23 @@ function sharedKeyChars(...rowLists) {
   return Math.min(Math.max(longest, 6), KV_KEY_MAX_CHARS);
 }
 
+// A key cell with its colon. The last character and the colon share one unbreakable run, so a
+// key that wraps (overflow-wrap) can never leave the colon alone on the next line.
+function kvKeyCell(name) {
+  const key = document.createElement("span");
+  key.className = "kv-key";
+  const chars = Array.from(String(name));
+  const last = chars.pop() ?? "";
+  const colon = document.createElement("span");
+  colon.className = "kv-colon";
+  colon.textContent = ":";
+  const tail = document.createElement("span");
+  tail.className = "kv-key-tail";
+  tail.append(last, colon);
+  key.append(chars.join(""), tail);
+  return key;
+}
+
 // DevTools-style key/value table: bold keys, dimmed colon, plain values that always wrap.
 function requestHeaderTable(rows, keyChars = sharedKeyChars(rows)) {
   const table = document.createElement("div");
@@ -148,13 +165,7 @@ function requestHeaderTable(rows, keyChars = sharedKeyChars(rows)) {
   for (const [name, value, options] of rows) {
     const row = document.createElement("div");
     row.className = "kv-row";
-    // The colon lives inside the key cell so it hugs the key text while values still line up.
-    const key = document.createElement("span");
-    key.className = "kv-key";
-    const colon = document.createElement("span");
-    colon.className = "kv-colon";
-    colon.textContent = ":";
-    key.append(String(name), colon);
+    const key = kvKeyCell(name);
     const val = document.createElement("span");
     val.className = "kv-value";
     if (options && "status" in options) val.appendChild(statusDot(options.status));
@@ -279,7 +290,13 @@ function availableRequestTabs(entry) {
 // parsed tree (JSON value or HTML/XML document) or the hex viewer, depending on the language
 // override (Hex included), the Source/Parsed toggle and whether the body parses at all.
 function renderBodyArea({ entry, tab, treeHost, viewerHost, sourceText, mime }) {
-  if (bodyViewFor(entry, tab) === "hex") {
+  const view = bodyViewFor(entry, tab);
+  if (view === "image") {
+    renderImageArea({ entry, tab, treeHost, viewerHost });
+    return;
+  }
+  hideResponseImage();
+  if (view === "hex") {
     renderHexArea({ entry, tab, treeHost, viewerHost });
     return;
   }
@@ -302,6 +319,35 @@ function renderBodyArea({ entry, tab, treeHost, viewerHost, sourceText, mime }) 
     : { text: sourceText, lang };
   viewer.setContent(shown.text, shown.lang);
   viewer.setWrap(!!state.requestDetailWrap);
+}
+
+// The response frame that shows a detected image (Response tab, Auto), in the same sandbox and
+// policy as Preview.
+function responseImageFrame() {
+  return document.getElementById("request-response-image");
+}
+
+function hideResponseImage() {
+  const frame = responseImageFrame();
+  if (!frame || frame.hidden) return;
+  frame.hidden = true;
+  frame.removeAttribute("srcdoc");
+}
+
+// The image itself; when the document can't be built the bytes are shown instead.
+function renderImageArea({ entry, tab, treeHost, viewerHost }) {
+  const doc = responsePreviewDocument(entry);
+  if (doc == null) {
+    hideResponseImage();
+    renderHexArea({ entry, tab, treeHost, viewerHost });
+    return;
+  }
+  hideHexHost(tab);
+  treeHost.hidden = true;
+  viewerHost.hidden = true;
+  const frame = responseImageFrame();
+  frame.hidden = false;
+  if (frame.srcdoc !== doc) frame.srcdoc = doc;
 }
 
 function renderPayloadPanel(entry) {
@@ -370,6 +416,7 @@ function renderResponsePanel(entry) {
   const placeholder = responsePlaceholderText(entry);
   if (placeholder) {
     viewerHost.hidden = true;
+    hideResponseImage();
     hideHexHost("response");
     treeHost.hidden = false;
     treeHost.replaceChildren(requestDetailEmpty(placeholder));
@@ -395,7 +442,10 @@ function responsePreviewKind(entry) {
   const { body, bodyMimeType } = entry._record.response;
   const mime = baseMime(bodyMimeType);
   if (mime === "image/svg+xml") return "svg";
-  if (mime.startsWith("image/")) return "image";
+  // A declared image type, or raster bytes behind a missing, generic or wrong Content-Type.
+  if (mime.startsWith("image/") || responseImageMime(entry)) return "image";
+  // Until the body loads, only the request's resource type can say it is an image.
+  if (entry._rawResponseBody == null && requestResourceType(entry) === "image") return "image";
   const { lang } = bodyLanguageFor(entry, "response");
   if (lang === "html") return "html";
   if (lang === "xml" && typeof body === "string" && SVG_ROOT.test(body.slice(0, 4096))) {
@@ -423,12 +473,12 @@ function withPreviewPolicy(html) {
 // Document for the sandboxed preview frame (no scripts run, no network), or null when the body
 // can't be shown that way (e.g. an image body that isn't base64, or a malformed MIME/data).
 function responsePreviewDocument(entry) {
-  const { body, bodyMimeType } = entry._record.response;
+  const { body } = entry._record.response;
   const kind = responsePreviewKind(entry);
   if (kind === "image") {
     if (!isBase64Body(body)) return null;
-    const mime = baseMime(bodyMimeType);
-    if (!PREVIEW_IMAGE_MIME.test(mime) || !PREVIEW_BASE64.test(body.data)) return null;
+    const mime = responseImageMime(entry);
+    if (!mime || !PREVIEW_IMAGE_MIME.test(mime) || !PREVIEW_BASE64.test(body.data)) return null;
     return withPreviewPolicy(
       "<!doctype html><style>html,body{height:100%;margin:0}" +
         "body{display:grid;place-items:center}img{max-width:100%;max-height:100%}</style>" +
@@ -565,7 +615,11 @@ function updateRequestFooterControls(entry, tab) {
   const override = requestBodyOverrides(entry)[tab] ?? "auto";
   const { lang } = bodyLanguageFor(entry, tab);
   const label =
-    view === "hex" ? "Hex" : (BODY_LANG_OPTIONS.find(([id]) => id === lang)?.[1] ?? lang);
+    view === "hex"
+      ? "Hex"
+      : view === "image"
+        ? "Image"
+        : (BODY_LANG_OPTIONS.find(([id]) => id === lang)?.[1] ?? lang);
   select.options[0].textContent = override === "auto" ? `Auto (${label})` : "Auto";
   // Base64 decoding is only offered when the body text actually decodes (or is already chosen).
   const base64Option = [...select.options].find((option) => option.value === "hex-base64");

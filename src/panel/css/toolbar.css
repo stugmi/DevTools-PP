@@ -193,6 +193,32 @@
   font-weight: 600;
 }
 
+/* Standing toggle for noisy blocked trackers; accent while on, like an active Domains filter. */
+.request-hide-blocked {
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, var(--border));
+  border-radius: 3px;
+  background: var(--bg-3);
+  color: var(--text-secondary);
+  font: var(--fs-xs) var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.request-hide-blocked:hover {
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+
+.request-hide-blocked.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
 .request-domain-chip {
   display: inline-flex;
   align-items: center;

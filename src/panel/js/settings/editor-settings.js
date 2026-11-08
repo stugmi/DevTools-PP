@@ -8,6 +8,8 @@
 window.EditorSettingsPanel = (() => {
   const STORAGE_KEY = "se.monacoRawSettings";
   const EXCLUDED_OPTIONS = new Set(["fontFamily", "fontSize", "smoothScrolling"]);
+  // Monaco options the read-only request viewers (RequestViewer) follow from the file editor.
+  const VIEWER_OPTIONS = ["stickyScroll"];
   const EDITOR_SECTION = "Editor";
 
   let entries = [];
@@ -137,7 +139,20 @@ window.EditorSettingsPanel = (() => {
       editorRef.updateOptions({ [entry.optionName]: setPath(entry.path, value) });
     } catch (error) {
       console.warn(`DevTools++: could not apply ${entry.dottedKey}`, error);
+      return;
     }
+    if (VIEWER_OPTIONS.includes(entry.optionName)) window.RequestViewer?.applyPreferences();
+  }
+
+  // The editor's effective value (settings over Monaco's defaults) of each option the request
+  // viewers share, or {} until the editor is ready.
+  function viewerOptions() {
+    if (!editorRef || !monacoRef) return {};
+    const options = {};
+    for (const name of VIEWER_OPTIONS) {
+      options[name] = editorRef.getOption(monacoRef.editor.EditorOption[name]);
+    }
+    return options;
   }
 
   function setOverride(dottedKey, value) {
@@ -854,5 +869,5 @@ window.EditorSettingsPanel = (() => {
     if (isOpen() && mode === "ui") renderBody();
   });
 
-  return { open, close, toggle, isOpen, commands };
+  return { open, close, toggle, isOpen, commands, viewerOptions };
 })();

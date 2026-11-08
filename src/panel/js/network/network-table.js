@@ -57,10 +57,11 @@ function requestSearchText(path, entry) {
 function requestMatchesFilters(path, entry) {
   const record = entry._record;
   if (!record) return false;
-  const { domain, type, method, minDuration, maxDuration } = state.requestFilters;
+  const { domain, type, method, minDuration, maxDuration, hideBlocked } = state.requestFilters;
 
   if (domain && requestHost(entry) !== domain) return false;
-  if (type && requestKind(entry) !== type) return false;
+  if (hideBlocked && requestIsBlocked(entry)) return false;
+  if (type && !requestMatchesTypeFilter(entry, requestKind(entry), type)) return false;
   if (method && record.request.method.toUpperCase() !== method) return false;
   if (minDuration !== "" || maxDuration !== "") {
     const duration = finiteOrNull(record.durationMs);
@@ -89,6 +90,7 @@ function requestListKey() {
     f.method,
     f.minDuration,
     f.maxDuration,
+    f.hideBlocked,
     state.filterText,
   ].join("\u0001");
 }
@@ -171,6 +173,7 @@ function formatTimestamp(capturedAt) {
 
 const NETWORK_SORT_ACCESSORS = {
   name: ([, entry]) => requestRowUrlPath(entry).toLowerCase(),
+  method: ([, entry]) => entry._record.request.method.toUpperCase(),
   status: ([, entry]) => finiteOrNull(entry._record.response.status),
   type: ([, entry]) => requestKind(entry),
   domain: ([, entry]) => requestHost(entry),
@@ -241,13 +244,11 @@ function buildNetworkRow(path, entry) {
   row.title = record.request.url;
 
   const nameCell = networkCell("network-cell-name", "");
-  const methodEl = document.createElement("span");
-  methodEl.className = "network-cell-method";
-  methodEl.textContent = record.request.method;
   const urlEl = document.createElement("span");
   urlEl.className = "network-cell-url";
   urlEl.textContent = requestRowUrlPath(entry);
-  nameCell.append(methodEl, urlEl);
+  nameCell.append(urlEl);
+  const methodCell = networkCell("network-cell-method", record.request.method);
 
   const view = requestStatusView(record);
   const statusCell = networkCell("network-cell-status", view.text);
@@ -269,6 +270,7 @@ function buildNetworkRow(path, entry) {
 
   row.append(
     nameCell,
+    methodCell,
     statusCell,
     typeCell,
     networkCell("network-cell-domain", requestHost(entry)),
@@ -353,6 +355,7 @@ function networkViewKey() {
     f.method,
     f.minDuration,
     f.maxDuration,
+    f.hideBlocked,
     state.filterText,
     sort.key,
     sort.dir,
