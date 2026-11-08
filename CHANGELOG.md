@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.3
+
+### Changes
+
+- New extension icon and panel header logo. The header logo follows the active color theme.
+- The extension description presents DevTools++ as a debugging, reverse engineering, and inspection workspace.
+
+### Developer Information
+
+- Release builds publish an unsigned `devtools-plus-plus.zip` with a `.sha256` checksum. CI no longer holds the CRX signing key.
+
 ## 1.5.2
 
 ### Changes

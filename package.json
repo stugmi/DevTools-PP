@@ -1,6 +1,6 @@
 {
   "name": "devtools-plus-plus",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "private": true,
   "description": "An extension to help exporting and reconstructing source files from source maps",
   "scripts": {

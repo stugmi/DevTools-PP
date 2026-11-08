@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DevTools++",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "An alternative source and network workspace inside Chrome DevTools for debugging, reverse engineering, and inspecting web pages.",
   "host_permissions": ["<all_urls>"],
   "permissions": ["clipboardWrite"],
