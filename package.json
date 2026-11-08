@@ -16,7 +16,10 @@
     "format": "bun fmt --no-script \"{src,scripts,tests}/**/*.{js,json,html,css}\" \"*.{js,json,md,toml}\" \"docs/**/*.md\" \".github/**/*.yml\"",
     "format:check": "bun fmt --no-script --check \"{src,scripts,tests}/**/*.{js,json,html,css}\" \"*.{js,json,md,toml}\" \"docs/**/*.md\" \".github/**/*.yml\"",
     "check": "bun run typecheck && bun run lint && bun run format:check && bun run build",
-    "fix": "bun run lint:fix && bun run format && bun run build"
+    "fix": "bun run lint:fix && bun run format && bun run build",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "secrets:install": "bun scripts/secrets/betterleaks.js install",
+    "secrets": "bun scripts/secrets/betterleaks.js history"
   },
   "packageManager": "bun@1.4.4-canary.20261105.1",
   "trustedDependencies": [

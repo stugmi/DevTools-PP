@@ -52,6 +52,20 @@ On Linux, install Chromium's system libraries with `bun run --bun playwright ins
 
 Python replay integration tests execute generated snippets against a local server using real `requests` and `httpx` clients. They skip with a reason when a Python interpreter or the relevant library is unavailable. Set `PYTHON_REQUEST_CODE_PYTHON` to select an interpreter. Native cURL (cmd) coverage runs on Windows; cURL (bash) coverage runs when `bash` and `curl` are available (Git Bash on Windows) and skips otherwise.
 
+## Secret scanning
+
+[Betterleaks](https://github.com/betterleaks/betterleaks) blocks commits that contain secrets and scans the full history in CI. The scanner is pinned to one release and verified against a SHA-256 stored in [`scripts/secrets/betterleaks.js`](../scripts/secrets/betterleaks.js).
+
+| Command                   | Purpose                                                       |
+| ------------------------- | ------------------------------------------------------------- |
+| `bun run secrets:install` | Download the pinned scanner into `.dev/bin` and verify it     |
+| `bun run hooks:install`   | Point Git at `.githooks` so every commit scans staged changes |
+| `bun run secrets`         | Scan the entire git history                                   |
+
+Run `bun run secrets:install` and `bun run hooks:install` once per clone. A blocked commit prints the finding with the secret redacted; remove the secret, or for a real false positive bypass one commit with `git commit --no-verify`. Rotate any credential that was committed, because removing it from a later commit does not remove it from history.
+
+The `Secret scan` workflow runs the same history scan on pushes to `main` and on pull requests. Scans cover every ref and never contact credential providers to validate findings. Only the Windows x64 build has been run end to end; the other platforms' archives are pinned from the release's official checksums but untested. To use your own binary, set `BETTERLEAKS_BIN`; it must report the pinned version. The scanner uses its built-in rules and ignores any config in the scanned tree, so a `.betterleaks.toml` is only used when it sits at the repository root.
+
 ## Toolchain configuration
 
 `package.json` and `bun.lock` pin `bun@1.4.4-canary.20261105.1`. Scripts resolve the local binary; no global canary upgrade is needed. Bun 1.4.4 stable has the formatter but not native lint, so CI uses stable Bun to bootstrap installation and the pinned canary for checks.

@@ -783,8 +783,7 @@ function probeInterpreters() {
     process.env.PYTHON,
     "python",
     "python3",
-    "C:\\py\\pythoncore-3.14-64\\python.exe",
-    "C:\\py\\bin\\python.exe",
+    "py",
   ].filter(Boolean);
   const found = { requests: null, httpx: null };
   for (const command of candidates) {

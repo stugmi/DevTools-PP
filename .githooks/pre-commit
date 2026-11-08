@@ -1,0 +1,5 @@
+#!/bin/sh
+# Blocks a commit whose staged changes contain secrets. Enable with `bun run hooks:install`.
+# Needs the pinned scanner once: `bun run secrets:install`.
+# Bypass for a single commit only when you are sure: git commit --no-verify
+exec bun scripts/secrets/betterleaks.js staged

@@ -12,15 +12,14 @@ coverage
 
 # logs
 logs
-_.log
-report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+*.log
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-# dotenv environment variable files
+# dotenv environment variable files (keep the template tracked)
 .env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+.env.*
+!.env.example
+.envrc
 
 # caches
 .cache
@@ -29,9 +28,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # IntelliJ based IDEs
 .idea
 
-# Finder (MacOS) folder config
+# Finder (MacOS) folder config and Windows folder metadata
 .DS_Store
+Thumbs.db
+desktop.ini
 
+# local agent and editor state
 .agents
 AGENTS.md
 .claude
@@ -41,7 +43,49 @@ AGENTS.md
 .dev
 old
 
-# packaged builds and signing key
-*.pem
+# packaged builds
 *.crx
 *.zip
+
+# signing keys, certificates with private parts, keystores
+*.pem
+*.key
+*.der
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.csr
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+*.gpg
+*.asc
+*.pem.*
+
+# credentials and tokens (cloud, registries, API clients)
+.npmrc
+.netrc
+.git-credentials
+.pypirc
+.aws
+.ssh
+.gnupg
+credentials*.json
+client_secret*.json
+*secret*.json
+service-account*.json
+*.secret
+*.secrets
+secrets.*
+
+# network captures and recordings can contain cookies and tokens
+*.har
+*.pcap
+*.pcapng
+
+# editor and merge leftovers that can hold copies of the above
+*.bak
+*.orig
