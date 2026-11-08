@@ -38,9 +38,10 @@ AGENTS.md
 .opencode
 .vscode
 .temp
+.dev
 old
 
 # packaged builds and signing key
 *.pem
 *.crx
-dist.zip
+*.zip
