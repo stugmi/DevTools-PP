@@ -18,6 +18,12 @@
   gap: 14px;
 }
 
+/* The row gap is sized for the tabs; pull the name closer to the logo. */
+#header-logo {
+  flex-shrink: 0;
+  margin-right: -10px;
+}
+
 #title {
   font-size: var(--fs-md);
   font-weight: 600;
