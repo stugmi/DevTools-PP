@@ -1,5 +1,8 @@
 name: Build and release
 
+# CI builds and publishes an UNSIGNED extension ZIP only. It never holds the CRX
+# signing key or Chrome Web Store credentials; signing and store upload happen on
+# a separately trusted machine (see docs/development.md).
 on:
   push:
     branches: [main]
@@ -7,7 +10,7 @@ on:
 
 concurrency:
   group: release
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -16,10 +19,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: true
 
       # Bootstrap install; project scripts use the canary pinned in bun.lock.
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "1.4.4"
 
@@ -27,18 +32,10 @@ jobs:
       - run: bun run check
 
       - name: Package
-        env:
-          CRX_PRIVATE_KEY: ${{ secrets.CRX_PRIVATE_KEY }}
         run: |
           mkdir out
           (cd dist && zip -qr ../out/devtools-plus-plus.zip .)
-          if [ -n "$CRX_PRIVATE_KEY" ]; then
-            printf '%s\n' "$CRX_PRIVATE_KEY" > "$RUNNER_TEMP/key.pem"
-            bun x --bun --no-install crx3 -p "$RUNNER_TEMP/key.pem" -o out/devtools-plus-plus.crx dist
-            rm "$RUNNER_TEMP/key.pem"
-          else
-            echo "::warning::CRX_PRIVATE_KEY secret not set; publishing zip only"
-          fi
+          (cd out && sha256sum devtools-plus-plus.zip > devtools-plus-plus.zip.sha256)
 
       - name: Publish versioned and rolling releases
         env:
