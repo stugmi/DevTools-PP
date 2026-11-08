@@ -7,7 +7,7 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { parseArgs } = require("node:util");
 
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "..", "..");
 const source = path.join(root, "src");
 const vendor = path.join(root, "dist", "vendor");
 const { values } = parseArgs({ options: { port: { type: "string", default: "5173" } } });
@@ -15,7 +15,7 @@ const port = Number(values.port);
 if (!Number.isInteger(port) || port < 0 || port > 65535) {
   throw new Error("--port must be an integer from 0 to 65535 (0 chooses a free port)");
 }
-execFileSync(process.execPath, [path.join(__dirname, "build.js")], { stdio: "inherit" });
+execFileSync(process.execPath, [path.join(__dirname, "..", "build.js")], { stdio: "inherit" });
 
 const clients = new Set();
 let revision = Date.now();

@@ -6,8 +6,8 @@
   "scripts": {
     "clean": "bun scripts/build.js --clean",
     "build": "bun scripts/build.js",
-    "dev": "bun scripts/dev.js",
-    "screenshots": "bun scripts/screenshots.js",
+    "dev": "bun scripts/dev/dev.js",
+    "screenshots": "bun scripts/screenshots/screenshots.js",
     "typecheck": "bun run --bun tsc --noEmit",
     "typecheck:watch": "bun run --bun tsc --noEmit --watch",
     "test": "bun test ./tests/test-*.js",

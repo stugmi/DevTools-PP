@@ -8,7 +8,7 @@ const { spawn, execFileSync } = require("node:child_process");
 const { chromium } = require("playwright");
 const { captureFileViews, captureSampleViews } = require("./screenshot-views.js");
 
-const root = path.resolve(__dirname, "..");
+const root = path.resolve(__dirname, "..", "..");
 const names = [
   "files-editor.png",
   "files-editor-navy.png",
@@ -21,10 +21,14 @@ const names = [
 ];
 
 function startPreview() {
-  const child = spawn(process.execPath, [path.join(__dirname, "dev.js"), "--port", "0"], {
-    cwd: root,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const child = spawn(
+    process.execPath,
+    [path.join(__dirname, "..", "dev", "dev.js"), "--port", "0"],
+    {
+      cwd: root,
+      stdio: ["ignore", "pipe", "pipe"],
+    }
+  );
   const ready = new Promise((resolve, reject) => {
     let log = "";
     const deadline = setTimeout(

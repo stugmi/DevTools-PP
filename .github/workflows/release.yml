@@ -44,7 +44,7 @@ jobs:
           version=$(bun -p "require('./package.json').version")
           notes="$RUNNER_TEMP/notes.md"
           # Fails when CHANGELOG.md has no non-empty section for this version.
-          bun scripts/changelog-notes.js "$version" > "$notes"
+          bun scripts/release/changelog-notes.js "$version" > "$notes"
 
           # Published versions keep their original tag and assets; only notes can change.
           if gh release view "v$version" > /dev/null 2>&1; then

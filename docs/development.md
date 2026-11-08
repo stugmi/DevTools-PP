@@ -23,7 +23,7 @@ Open `http://127.0.0.1:5173/` for the standalone panel. Use `bun run dev --port 
 
 The server builds once for the local vendor assets, then serves panel HTML, JavaScript, CSS, and images directly from `src/`. Saving a source file, `package.json`, or the demo configuration automatically reloads the page. This is a full-page reload, not state-preserving module replacement: open tabs and unsaved edits reset, while settings stay in this browser origin's local storage.
 
-The preview runs the real panel, Monaco editor, and settings UI against a simulated shop capture. Edit [`scripts/dev-data.js`](../scripts/dev-data.js) to change the default source files, source map, HAR requests, and response bodies. This data is local; no live website, inspected Chrome tab, or MCP connection is needed. To verify real capture behavior, use the [unpacked extension](#install-and-build).
+The preview runs the real panel, Monaco editor, and settings UI against a simulated shop capture. Edit [`scripts/dev/dev-data.js`](../scripts/dev/dev-data.js) to change the default source files, source map, HAR requests, and response bodies. This data is local; no live website, inspected Chrome tab, or MCP connection is needed. To verify real capture behavior, use the [unpacked extension](#install-and-build).
 
 The server listens only on `127.0.0.1`; `--port 0` chooses a free port. Restart it after dependency or dev-server changes to rebuild vendor assets. The demo adapter and reload client are injected only by this server, never into the built extension.
 
@@ -35,7 +35,7 @@ bun run screenshots
 
 This builds the assets, starts a temporary dev panel on a free port, and refreshes all eight PNGs in [`docs/images/`](images/) using the same [simulated capture](#live-panel-preview). The first run downloads a pinned Playwright headless renderer if needed. It does not open your Chrome profile, inspect a live tab, or request the sample URLs. The temporary server and browser close on success or failure.
 
-Scenes in [`scripts/screenshot-views.js`](../scripts/screenshot-views.js) exercise the current UI for the default editor, Navy theme, search, source filter, formatting settings, JSON response, binary hex view, and Copy as menu. Each run starts with isolated settings, fixed demo timestamps, a 1600 by 950 viewport at 2x scale, and the default dark theme except for the Navy shot. Images are replaced only after all scenes succeed; review the generated images before committing them.
+Scenes in [`scripts/screenshots/screenshot-views.js`](../scripts/screenshots/screenshot-views.js) exercise the current UI for the default editor, Navy theme, search, source filter, formatting settings, JSON response, binary hex view, and Copy as menu. Each run starts with isolated settings, fixed demo timestamps, a 1600 by 950 viewport at 2x scale, and the default dark theme except for the Navy shot. Images are replaced only after all scenes succeed; review the generated images before committing them.
 
 On Linux, install Chromium's system libraries with `bun run --bun playwright install-deps chromium` if Playwright reports missing libraries. Browser assets and temporary output are not committed.
 
