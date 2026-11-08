@@ -29,6 +29,7 @@
     "crx3": "2.0.0",
     "globals": "^15.14.0",
     "monaco-editor": "0.52.2",
+    "pbf": "4.0.2",
     "playwright": "1.65.0",
     "typescript": "^5.7.2"
   },
